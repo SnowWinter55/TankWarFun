@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tank War</title>
+<style>
+  * { box-sizing:border-box; }
+  body { margin:0; min-height:100vh; background:#10140f; color:#efe9d5; font-family:'Segoe UI',system-ui,sans-serif;
+    display:flex; flex-direction:column; align-items:center; padding:14px; }
+  h1 { margin:6px 0 2px; font-size:21px; }
+  p.sub { margin:0 0 10px; opacity:.75; font-size:13.5px; text-align:center; }
+  #hud { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin:10px 0; font-size:13px; max-width:1100px; }
+  .pill { background:#1d241b; border:1px solid #46543f; padding:6px 12px; border-radius:999px; }
+  .pill b { color:#ffd75e; }
+  .pill.cool b { color:#7df9ff; }
+  #slots { display:flex; gap:6px; flex-wrap:wrap; justify-content:center; margin-bottom:8px; font-size:12.5px; }
+  .slot { background:#1d241b; border:2px solid #46543f; padding:4px 10px; border-radius:8px; opacity:.55; }
+  .slot.on { opacity:1; border-color:#ffd75e; }
+  .slot.cur { background:#3a2f10; border-color:#ffd75e; box-shadow:0 0 8px #ffd75e66; opacity:1; }
+  #wrap { position:relative; border:4px solid #3a3a3a; border-radius:12px; overflow:hidden; background:#222;
+    box-shadow:0 12px 40px rgba(0,0,0,.5); }
+  canvas { display:block; image-rendering:pixelated; max-width:96vw; height:auto; }
+  .overlay { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column;
+    gap:12px; text-align:center; background:rgba(8,12,7,.86); padding:20px; overflow-y:auto; }
+  .overlay.hidden { display:none; }
+  .overlay h2 { margin:0; font-size:24px; }
+  .overlay p { margin:0; max-width:640px; line-height:1.55; font-size:14px; }
+  button { cursor:pointer; border:0; border-radius:10px; padding:10px 20px; font-size:14px; font-weight:700;
+    background:#ff5b5b; color:#fff; }
+  button:disabled { opacity:.35; cursor:default; }
+  button.gold { background:#c99a1b; }
+  kbd { background:#000; border:1px solid #555; border-bottom-width:3px; border-radius:6px; padding:1px 7px; font-size:12px; }
+  #help { max-width:1100px; font-size:12.5px; line-height:1.65; opacity:.88; margin-top:12px; }
+  #log { max-width:1100px; font-size:12px; opacity:.7; margin-top:6px; font-family:Consolas,monospace; white-space:pre-wrap; }
+  #shopItems { display:flex; flex-direction:column; gap:6px; max-width:660px; width:100%; max-height:46vh; overflow-y:auto; }
+  .shopRow { display:flex; align-items:center; gap:10px; background:#1d241b; border:1px solid #46543f;
+    border-radius:8px; padding:6px 10px; font-size:13px; text-align:left; }
+  .shopRow .nm { flex:1; }
+  .shopRow .nm small { display:block; opacity:.7; font-size:11.5px; }
+  .shopRow .pips { color:#ffd75e; font-size:12px; white-space:nowrap; }
+  .shopRow button { padding:6px 14px; font-size:12.5px; white-space:nowrap; }
+  #shopGold { font-size:16px; color:#ffd75e; font-weight:700; }
+  #shopGold img { height:20px; vertical-align:-4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🔴 Tank Đỏ — Level + Shop + Đạn dược</h1>
+  <p class="sub">Map <b>42×28</b> • <kbd>1</kbd> missile <kbd>2</kbd> claymore <kbd>3</kbd> flame (+<kbd>F</kbd> cold) <kbd>4</kbd> lazer • <kbd>T</kbd> shop <kbd>R</kbd> chơi lại màn</p>
+</header>
+
+<section id="hud">
+  <div class="pill">🗺️ Màn: <b id="level">1</b></div>
+  <div class="pill">❤️ Máu: <b id="hp">1/1</b></div>
+  <div class="pill">🪙 Vàng: <b id="gold">0</b></div>
+  <div class="pill cool">🎒 Đạn: <b id="reload">sẵn sàng</b></div>
+  <div class="pill">💥 Điểm: <b id="score">0</b></div>
+  <div class="pill">👾 Xanh: <b id="foes">0</b></div>
+  <div class="pill">🟢 Base: <b id="basehp">4/4</b></div>
+  <button id="btnShake" title="Bật/tắt rung màn hình" style="border-radius:999px;padding:6px 14px;font-size:13px;">📳 Rung: BẬT</button>
+</section>
+<div id="slots"></div>
+
+<main id="wrap">
+  <canvas id="game" width="1344" height="896"></canvas>
+  <div id="overlay" class="overlay">
+    <h2 id="ovTitle">🔴 TANK ĐỎ XUNG TRẬN</h2>
+    <p id="ovText"></p>
+    <div><button id="btnStart">▶ Chơi ngay</button></div>
+  </div>
+  <div id="shop" class="overlay hidden">
+    <h2>🛒 SHOP <span id="shopGold"><img id="goldIcon" alt="gold"> <span id="shopGoldN">0</span></span></h2>
+    <p id="shopSub">Phá base xong! Mua đồ rồi qua màn tiếp theo.</p>
+    <div style="display:flex;gap:8px;">
+      <button id="tabW">🔫 VŨ KHÍ</button>
+      <button id="tabC" class="gold">🧬 ĐẶC TÍNH</button>
+    </div>
+    <div id="shopItems"></div>
+    <div style="display:flex;gap:8px;">
+      <button id="btnNext" class="gold">▶ Màn tiếp theo</button>
+      <button id="btnCloseShop">Đóng [T]</button>
+    </div>
+  </div>
+</main>
+
+<section id="help">
+  🕹️ <b>Di chuyển mượt:</b> giữ <kbd>WASD</kbd>, cạ tường tự trượt. Bạn <b>3.4 tile/s</b>.<br>
+  🎒 <b>Đạn dược:</b> missile 1 đạn/phát, 1 load 80 đạn, nạp 3s • claymore 1/load, nạp 4s • flamethrower 1 gastank phun 20s, nạp 5s • railgun pin 300, 1 bắn tốn 80, firerate 5s, nạp 0.5s. Kho có trần (nâng ở tab Đặc tính), hết đạn mua trong shop hoặc nhặt từ thùng.<br>
+  🚀 <b>[1] Missile:</b> Multimissile (2×0.5) → Multimissile+ (3×0.33, 4×0.25) → Compound Explosive → Tactical Launchpad tới 0.07s. Homing 2 tile (dí còn nửa tốc).<br>
+  💥 <b>[2] Claymore</b> (phá màn 2 mở): nón 75° tầm 2 tile, nổ 3dmg, không upgrade dmg — chỉ upgrade cơ chế: Clairvoyance (nón tới 220°) • Fatality (999999999 xuyên block) • Shrapnel (mảnh 0.8dmg, 40s) • Psionic (tầm +2). 🔥 <b>[3] Flame</b> (phá màn 6 mở): burn/frost + Napalm/Cold/Chem — <b>chỉ burn mới đốt all block</b>, lửa nóng đốt cả thùng/base (kháng 80%). 🔆 <b>[4] Lazer</b> (phá màn 10 mở, để cuối shop): xuyên vô cực, High Frequency (xuyên tường) • Electrocharged (1→40dmg) • Phased Frequency (xuyên block).<br>
+  🛒 <b>Shop 2 tab:</b> 🔫 VŨ KHÍ • 🧬 ĐẶC TÍNH: Tactical Armor ([0.5,0.5]→[2,2,1]) • Ammunition Supply • Compound Turret • Effective Callout • Tactical Effectiveness • Optimized Reload. Crit áp mọi dmg (CRIT!).<br>
+  🧱 <b>Health block 2 chiều:</b> dmg thường kẹt block; burn đốt all block; F.resist/thùng/base kháng burn 80% (0.04/tick).<br>
+  👾 <b>Địch:</b> thường [1,1,1] • elite [3,2,2] burst 2 phát 3x • twin 2 đạn song song 3x • shotgun 4 đạn 125° (cường hóa 7 đạn 135°) • weaver + drone kamikaze (nhanh +35%) • caller không kích 5 ô (báo 1.5s) • fireresist 1 block • medic heal 3x3 (nạp 4s, đạn 15 tile/s) • railgun ngắm xuyên tường range vô hạn • railgun elite: xuyên block + dmg ×2 + 7hp • shielder khiên 2.5s.
+</section>
+<div id="log"></div>
+
+<script src="js/config.js"></script>
+<script src="js/core.js"></script>
+<script src="js/state.js"></script>
+<script src="js/world.js"></script>
+<script src="js/combat.js"></script>
+<script src="js/entities.js"></script>
+<script src="js/weapons.js"></script>
+<script src="js/foes.js"></script>
+<script src="js/levels.js"></script>
+<script src="js/shop.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
