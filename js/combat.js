@@ -75,8 +75,9 @@ function touchFlame(f) {
     }
   } else {
     f.frost.stacks = 0; f.frost.dur = 0;
+    const cap = f.notFlammable ? 1 : BURN.max;
     if (f.burn.stacks > 0) {
-      f.burn.stacks = Math.min(BURN.max, f.burn.stacks + 1);
+      f.burn.stacks = Math.min(cap, f.burn.stacks + 1);
       f.burn.dur = burnDur();
     } else {
       damageFoe(f, FLAME.dmg, 'block');
@@ -85,12 +86,11 @@ function touchFlame(f) {
   }
 }
 
-// Lửa NÓNG lên công trình (crate/base đều INotFlammable): first-contact 0.05 + châm burn.
-// Lửa LẠNH bỏ qua công trình. Trả về true nếu công trình bị phá.
+// Lửa NÓNG lên công trình (crate/base đều INotFlammable): first-contact 0.05 + châm burn, kẹp 1 stack.
 function touchStruct(s, onDeath) {
   s.burn = s.burn || { stacks: 0, dur: 0, tick: 0 };
   if (s.burn.stacks > 0) {
-    s.burn.stacks = Math.min(BURN.max, s.burn.stacks + 1);
+    s.burn.stacks = Math.min(1, s.burn.stacks + 1);
     s.burn.dur = burnDur();
   } else {
     deplete(s, Math.min(FLAME.dmg, blockRemain(s)));
@@ -117,8 +117,26 @@ function hurtPlayer(d = 1, pierce = false) {
   if (player.hp <= 0) { player.hp = 0; player.alive = false; gameOver(); }
   updateHUD();
 }
-function hurtBase(d = 1, mode = 'block') { // base cũng có block + kháng lửa
+function hurtBase(d = 1, mode = 'block') { // base có block + kháng lửa + khiên + cứu 1 lần/màn
+  if (!base || base.hp <= 0) return;
+  if (base.shield > 0) { addFloat(base.x, base.y - 26, 'BLOCK!', '#7df9ff'); return; } // khiên negate
   const dealt = mode === 'block' ? Math.min(d, blockRemain(base)) : d;
+  const lethal = base.hp - dealt <= 1e-9;
+  if (lethal && !base.saved && level >= 6) {
+    // triệu hồi shielder cứu base 1 lần/màn (từ sau màn xuất hiện shielder)
+    base.saved = true;
+    try {
+      const sx = base.x + 40, sy = base.y + 50;
+      foes.push(Foe.create('H', sx, sy));
+    } catch (e) { foes.push(Foe.create('H', base.x, base.y + 60)); }
+    base.shield = SHIELD.dur;
+    addFloat(base.x, base.y - 30, 'BASE SAVED!', '#7df9ff');
+    explode(base.x, base.y, 24, ['#7df9ff', '#fff']);
+    log('🛡️ Base chí tử được shielder cứu (1 lần/màn)!');
+    beep(600, 0.3, 'sine', 0.12);
+    updateHUD();
+    return; // negate dmg chí tử
+  }
   deplete(base, dealt);
   explode(base.x, base.y, 16);
   addFloat(base.x, base.y - 26, 'BASE -' + fmt(d), '#7CFC00'); beep(70, 0.3, 'square', 0.12);

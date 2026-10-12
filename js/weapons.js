@@ -2,7 +2,14 @@
 // ---- derived stats ----
 function misCount() { return !up.multi ? 1 : (2 + up.cnt); }
 function misDmg() { return MIS_COUNT_DMG[misCount()] * MIS_DMG_MUL[up.dmg]; }
-function misRate() { return MIS_FIRERATE[up.rel] * FRATE_MULT[up.frate]; }
+function misRate() {
+  if (oldMissileLvl === level) return MIS_FIRERATE[8] * FRATE_MULT[up.frate]; // cheat oldmissile: max 0.07 trong 1 màn
+  return MIS_FIRERATE[Math.min(up.rel, MIS_REL_MAX)] * FRATE_MULT[up.frate];
+}
+function miniMag() { return MINI_MAG[up.mag || 0] || MINI.load; }
+function miniRate() { return (RAPID_RATE[up.rapid || 0] || MINI.rate) * FRATE_MULT[up.frate]; }
+function teslaChainLimit() { return TESLA.chainBase + (up.high || 0); } // 2/3/4/5
+function teslaFalloff() { return TESLA_FALL[up.malcond || 0]; }
 function railDmg() { return 1 * RAIL_MUL[up.charge]; }
 function railRate() { return LASER_RELOAD * FRATE_MULT[up.frate]; }
 function relMul() { return RELOAD_MULT[up.rld]; }
@@ -21,9 +28,11 @@ function addStock(kind, n) { // nạp kho có kẹp trần
 function refillLoads() { // đầu màn: nạp đầy load từ stock (free)
   const A = ammo;
   if (A.mis.load < MIS_LOAD && A.mis.stock > 0) { const t = Math.min(MIS_LOAD - A.mis.load, A.mis.stock); A.mis.load += t; A.mis.stock -= t; }
+  if (A.mini.load < miniMag() && A.mis.stock > 0) { const need = miniMag() - A.mini.load, take = Math.min(Math.ceil(need / MINI_PER_MIS), Math.floor(A.mis.stock)); A.mini.load += Math.min(need, take * MINI_PER_MIS); A.mis.stock -= take; }
   if (A.clay.load < 1 && A.clay.stock > 0) { A.clay.stock--; A.clay.load = 1; }
   if (A.flame.fuel <= 0 && A.flame.tanks > 0) { A.flame.tanks--; A.flame.fuel = FLAME_TANK; }
   if (A.rail.charge < RAIL_BAT && A.rail.stock > 0) { const t = Math.min(RAIL_BAT - A.rail.charge, A.rail.stock); A.rail.charge += t; A.rail.stock -= t; }
+  if (A.tesla.charge < RAIL_BAT && A.rail.stock > 0) { const t = Math.min(RAIL_BAT - A.tesla.charge, A.rail.stock); A.tesla.charge += t; A.rail.stock -= t; }
 }
 function dryHint(txt) {
   if (player.dryT > 0) return; player.dryT = 1.2;
@@ -33,24 +42,30 @@ function dryHint(txt) {
 // ---- player fire ----
 function firePress() {
   if (!player.alive) return;
-  if (player.form === 'MIS') fireMissiles();
+  if (player.form === 'MINI') fireMinigun();
+  else if (player.form === 'MIS') fireMissiles();
   else if (player.form === 'CLAY') placeClaymore();
+  else if (player.form === 'TESLA') fireTesla();
   else if (player.form === 'RAIL') fireLaser(player.x, player.y, player.ang, false);
 }
 function startReload(k) {
   const A = ammo, m = relMul();
   if (k === 'mis' && A.mis.rel <= 0 && A.mis.stock > 0) A.mis.rel = MIS_RELOAD * m;
+  if (k === 'mini' && A.mini.rel <= 0 && A.mis.stock > 0) A.mini.rel = MINI.reload * m;
   if (k === 'clay' && A.clay.rel <= 0 && A.clay.stock > 0) A.clay.rel = CLAY_RELOAD * m;
   if (k === 'flame' && A.flame.rel <= 0 && A.flame.tanks > 0) A.flame.rel = FLAME_RELOAD * m;
   if (k === 'rail' && A.rail.rel <= 0 && A.rail.stock > 0) A.rail.rel = RAIL_RELOAD * m;
+  if (k === 'tesla' && A.tesla.rel <= 0 && A.rail.stock > 0) A.tesla.rel = TESLA.reload * m;
 }
 function tickReloads(dt) { // nạp đạn tự động, kẹp rel về 0
   const A = ammo;
   let dirty = false;
   if (A.mis.rel > 0) { A.mis.rel -= dt; if (A.mis.rel <= 0) { A.mis.rel = 0; const t = Math.min(MIS_LOAD, A.mis.stock); A.mis.load += t; A.mis.stock -= t; dirty = true; } }
+  if (A.mini.rel > 0) { A.mini.rel -= dt; if (A.mini.rel <= 0) { A.mini.rel = 0; const need = miniMag() - A.mini.load, take = Math.min(Math.ceil(need / MINI_PER_MIS), Math.floor(A.mis.stock)); A.mini.load += Math.min(need, take * MINI_PER_MIS); A.mis.stock -= take; dirty = true; } }
   if (A.clay.rel > 0) { A.clay.rel -= dt; if (A.clay.rel <= 0) { A.clay.rel = 0; if (A.clay.stock > 0) { A.clay.stock--; A.clay.load = 1; dirty = true; } } }
   if (A.flame.rel > 0) { A.flame.rel -= dt; if (A.flame.rel <= 0) { A.flame.rel = 0; if (A.flame.tanks > 0) { A.flame.tanks--; A.flame.fuel = FLAME_TANK; dirty = true; } } }
   if (A.rail.rel > 0) { A.rail.rel -= dt; if (A.rail.rel <= 0) { A.rail.rel = 0; const t = Math.min(RAIL_BAT - A.rail.charge, A.rail.stock); A.rail.charge += t; A.rail.stock -= t; dirty = true; } }
+  if (A.tesla.rel > 0) { A.tesla.rel -= dt; if (A.tesla.rel <= 0) { A.tesla.rel = 0; const t = Math.min(RAIL_BAT - A.tesla.charge, A.rail.stock); A.tesla.charge += t; A.rail.stock -= t; dirty = true; } }
   if (dirty) updateHUD();
 }
 function fireMissiles() {
@@ -85,6 +100,135 @@ function placeClaymore() {
   claymores.push({ x: player.x + Math.sin(a) * 26, y: player.y - Math.cos(a) * 26, ang: a, t: 0 });
   beep(400, 0.1, 'square', 0.08); updateHUD();
 }
+// Minigun: hitscan 1 đường thẳng, ray vàng 1px, chặn bởi crate/tường, không xuyên mặc định.
+function fireMinigun() {
+  const A = ammo.mini;
+  if (player.cd > 0 || A.rel > 0) return;
+  if (A.load <= 0) { startReload('mini'); if (ammo.mis.stock <= 0) dryHint('Hết đạn minigun (chung missile)!'); return; }
+  player.cd = miniRate();
+  A.load--;
+  if (A.load <= 0) startReload('mini');
+  player.miniHold = (player.miniHold || 0) + player.cd; // tích giờ xả liên tục (xấp xỉ)
+  player.miniGap = 0;
+  const a = player.ang, dx = Math.sin(a), dy = -Math.cos(a);
+  const pierceRoll = Math.random() < (CALIBER_PIERCE[up.caliber || 0] || 0);
+  let hitD = 2600;
+  if (!pierceRoll) {
+    for (let d = 20; d < 2600; d += 8) {
+      const px = player.x + dx * d, py = player.y + dy * d;
+      if (px < 0 || py < 0 || px > W || py > H) { hitD = d; break; }
+      const { c, r } = cellAt(px, py);
+      if (inMap(c, r) && map[r][c] === 'B') { hitD = d - 8; break; }
+      if (crates.some(k => px > k.c * TILE && px < (k.c + 1) * TILE && py > k.r * TILE && py < (k.r + 1) * TILE)) { hitD = d - 8; break; }
+    }
+  }
+  const dmgAt = (px, py) => Math.abs((px - player.x) * dy - (py - player.y) * dx) < 13 && ((px - player.x) * dx + (py - player.y) * dy) > 0 && ((px - player.x) * dx + (py - player.y) * dy) < hitD;
+  // viên gần nhất trên đường thẳng (không xuyên tank mặc định, trừ khi pierce)
+  const tg = foes.concat(drones).filter(f => dmgAt(f.x, f.y))
+    .sort((p, q) => Math.hypot(p.x - player.x, p.y - player.y) - Math.hypot(q.x - player.x, q.y - player.y));
+  const targets = pierceRoll ? tg : tg.slice(0, 1);
+  // visual: chỉ xuyên tank khi logic xuyên; nếu không thì ray dừng ngay tại tank đầu tiên
+  let visD = hitD;
+  if (!pierceRoll && targets.length) {
+    const f0 = targets[0];
+    visD = Math.min(hitD, (f0.x - player.x) * dx + (f0.y - player.y) * dy);
+  }
+  beams.push({ x1: player.x + dx * 20, y1: player.y + dy * 20, x2: player.x + dx * visD, y2: player.y + dy * visD, t: 0, life: 0.12, mini: true });
+  beep(950, 0.04, 'square', 0.05);
+  const ignitOn = (up.ignit || 0) > 0 && (player.miniHold || 0) >= IGNIT_TIME[up.ignit];
+  const dbl = Math.random() < (RAPID_CHANCE[up.rapid || 0] || 0); // Rapid Fire: double dmg
+  const baseDmg = (MINI.dmg + (ignitOn ? IGNIT_DMG[up.ignit] : 0)) * (dbl ? 2 : 1);
+  for (const f of targets) {
+    const dmg = baseDmg;
+    damageFoe(f, dmg, pierceRoll ? 'pierce' : 'block');
+    if (dbl && f.hp > 0) addFloat(f.x, f.y - 30, 'x2!', '#ffe45e');
+    if (ignitOn && f.hp > 0) { // 1 stack burn (kẹp INotFlammable còn 1)
+      f.burn = f.burn || { stacks: 0, dur: 0, tick: 0 };
+      const cap = f.notFlammable ? 1 : BURN.max;
+      if (f.burn.stacks <= 0) { f.burn.stacks = 1; f.burn.dur = burnDur(); f.burn.tick = burnInterval(1); }
+      else { f.burn.stacks = Math.min(cap, f.burn.stacks + 1); f.burn.dur = burnDur(); }
+    }
+    explode(f.x, f.y, 4, ['#ffe45e', '#fff']);
+  }
+  // trúng crate trên đường (50%? không — minigun gây full lên crate nhưng chặn)
+  if (!pierceRoll) {
+    for (let i = crates.length - 1; i >= 0; i--) {
+      const k = crates[i];
+      if (dmgAt(k.c * TILE + 16, k.r * TILE + 16)) {
+        deplete(k, Math.min(baseDmg, blockRemain(k))); k.hit = 1; explode(k.c * TILE + 16, k.r * TILE + 16, 4);
+        if (k.hp <= 0) { const idx = crates.indexOf(k); if (idx >= 0) breakCrate(idx); }
+        break;
+      }
+    }
+    if (dmgAt(base.x, base.y)) hurtBase(baseDmg);
+  } else {
+    for (let i = crates.length - 1; i >= 0; i--) {
+      const k = crates[i];
+      if (dmgAt(k.c * TILE + 16, k.r * TILE + 16)) {
+        deplete(k, baseDmg); k.hit = 1;
+        if (k.hp <= 0) { const idx = crates.indexOf(k); if (idx >= 0) breakCrate(idx); }
+      }
+    }
+    if (dmgAt(base.x, base.y)) hurtBase(baseDmg, 'pierce');
+  }
+  updateHUD();
+}
+// Tesla: chain sét, tầm 5 tile, 5⚡/tase, tick liên tục, chain trong 3 ô.
+function fireTesla() {
+  const A = ammo.tesla;
+  if (player.teslaCd > 0 || A.rel > 0) return;
+  if (A.charge < TESLA.cost) { startReload('tesla'); if (ammo.rail.stock <= 0) dryHint('Hết pin tesla (chung railgun)!'); return; }
+  player.teslaCd = TESLA.tick; // không firerate upgrade
+  A.charge -= TESLA.cost;
+  if (A.charge <= 0) startReload('tesla');
+  const allF = foes.concat(drones);
+  // nạn nhân đầu: gần nhất trong tầm 5 tile (bất kể hướng — tesla tự tìm)
+  let first = null, bd = TESLA.range;
+  for (const f of allF) { const d = Math.hypot(f.x - player.x, f.y - player.y); if (d < bd) { bd = d; first = f; } }
+  if (!first) { beep(180, 0.05, 'sawtooth', 0.04); updateHUD(); return; }
+  const chainN = teslaChainLimit(), fall = teslaFalloff();
+  const chained = [first];
+  let cur = first;
+  for (let i = 1; i < chainN; i++) {
+    let best = null, bdd = TESLA.chainR;
+    for (const f of allF) {
+      if (chained.includes(f)) continue;
+      const d = Math.hypot(f.x - cur.x, f.y - cur.y);
+      if (d < bdd) { bdd = d; best = f; }
+    }
+    if (!best) break;
+    chained.push(best); cur = best;
+  }
+  const pts = [{ x: player.x, y: player.y }];
+  chained.forEach((f, i) => {
+    const mult = Math.max(0.1, 1 - fall * i);
+    const dmg = TESLA.dmg * mult;
+    const before = f.hp;
+    damageFoe(f, dmg, 'block');
+    pts.push({ x: f.x, y: f.y });
+    explode(f.x, f.y, 6, ['#7df9ff', '#fff', '#c9a7ff']);
+    teslaHitReact(f, dmg, before);
+    if (f.hp <= 0) maybeDropBall(f.x, f.y);
+  });
+  beams.push({ pts, t: 0, life: 0.18, tesla: true });
+  beep(1400, 0.08, 'sawtooth', 0.07); shake = Math.min(10, shake + 1);
+  updateHUD();
+}
+function teslaHitReact(f, dmg, before) {
+  // Shielder bị tesla/sét hòn giật -> 0.2s sau khiên all đồng minh (trừ base)
+  if (f.kind === 'H' && foes.includes(f)) {
+    shieldReact.push({ t: 0.2 });
+    addFloat(f.x, f.y - 26, 'NHIỄM ĐIỆN!', '#7df9ff');
+  }
+}
+function maybeDropBall(x, y) {
+  const lvl = up.ball || 0;
+  if (lvl <= 0) return;
+  if (Math.random() < BALL.chance[lvl]) {
+    balls.push({ x, y, t: 0, dur: BALL.dur[lvl], r: BALL.radius[lvl], max: BALL.max[lvl], tick: BALL.tick[lvl], cd: 0 });
+    addFloat(x, y - 18, 'SÉT HÒN!', '#c9a7ff');
+  }
+}
 function fireLaser(x, y, ang, foe) {
   if (!foe) {
     const A = ammo.rail;
@@ -118,13 +262,14 @@ function fireLaser(x, y, ang, foe) {
   for (let i = crates.length - 1; i >= 0; i--) {
     const k = crates[i];
     if (dmgAt(k.c * TILE + TILE / 2, k.r * TILE + TILE / 2)) {
-      // lazer kẹt block thùng, trừ khi có xuyên block
-      deplete(k, up.bpierce ? railDmg() : Math.min(railDmg(), blockRemain(k)));
+      // railgun lên static obstacle chỉ nhận 50% (trả one-shot base cho maxed railgun)
+      const half = dmg * 0.5;
+      deplete(k, up.bpierce ? half : Math.min(half, blockRemain(k)));
       explode(k.c * TILE + 16, k.r * TILE + 16, 8);
       if (k.hp <= 0) { crates.splice(i, 1); score += 10; }
     }
   }
-  if (dmgAt(base.x, base.y)) hurtBase(2, up.bpierce ? 'pierce' : 'block');
+  if (dmgAt(base.x, base.y)) hurtBase(dmg * 0.5, up.bpierce ? 'pierce' : 'block');
   if (hit > 1) log('lazer xuyên ' + hit + ' mục tiêu');
   updateHUD();
 }
@@ -190,17 +335,25 @@ function foeRailFire(f) {
   if (player.alive && dmgAt(player.x, player.y)) { hurtPlayer(FOE_RAIL.dmg * (elite ? 2 : 1), elite); explode(player.x, player.y, 12); }
   f.cd = FOE_RAIL.cd;
 }
-function fireHealOrb(f, target) { // medic: đạn hồi máu homing 15 tile/s
-  const a = Math.atan2(target.x - f.x, -(target.y - f.y));
-  bullets.push({ kind: 'heal', img: 'bNorm', tint: 'hue-rotate(90deg)', x: f.x + Math.sin(a) * 18, y: f.y - Math.cos(a) * 18,
-    vx: Math.sin(a) * MEDIC.orbSpeed, vy: -Math.cos(a) * MEDIC.orbSpeed, ang: a, foe: false, healer: true, target, life: 6, size: 12 });
-  f.cd = MEDIC.cd + rnd(0, 1); beep(520, 0.1, 'sine', 0.07);
+function nearBasePlayer() { // player trong 5 tiles gần base
+  if (!player || !player.alive || !base || base.hp <= 0) return false;
+  return Math.hypot(player.x - base.x, player.y - base.y) < TILE * 5;
 }
-function fireShieldOrb(f, target) { // shielder: orb khiên homing
+function fireHealOrb(f, target) { // medic: đạn hồi máu homing 15 tile/s (base focus + 25% nạp)
   const a = Math.atan2(target.x - f.x, -(target.y - f.y));
+  const isBase = target === base;
+  bullets.push({ kind: 'heal', img: 'bNorm', tint: 'hue-rotate(90deg)', x: f.x + Math.sin(a) * 18, y: f.y - Math.cos(a) * 18,
+    vx: Math.sin(a) * MEDIC.orbSpeed, vy: -Math.cos(a) * MEDIC.orbSpeed, ang: a, foe: false, healer: true, target, isBase, life: 6, size: 12 });
+  const mult = (isBase && nearBasePlayer()) ? 0.25 : 1;
+  f.cd = (MEDIC.cd + rnd(0, 1)) * mult; beep(520, 0.1, 'sine', 0.07);
+}
+function fireShieldOrb(f, target) { // shielder: orb khiên homing (base focus + 25% nạp)
+  const a = Math.atan2(target.x - f.x, -(target.y - f.y));
+  const isBase = target === base;
   bullets.push({ kind: 'shield', img: 'bNorm', tint: 'hue-rotate(200deg) saturate(2)', x: f.x + Math.sin(a) * 18, y: f.y - Math.cos(a) * 18,
-    vx: Math.sin(a) * TILE * 3.5, vy: -Math.cos(a) * TILE * 3.5, ang: a, foe: false, healer: true, target, life: 7, size: 13 });
-  f.cd = SHIELD.cd + rnd(0, 1); beep(440, 0.1, 'sine', 0.07);
+    vx: Math.sin(a) * TILE * 3.5, vy: -Math.cos(a) * TILE * 3.5, ang: a, foe: false, healer: true, target, isBase, life: 7, size: 13 });
+  const mult = (isBase && nearBasePlayer()) ? 0.25 : 1;
+  f.cd = (SHIELD.cd + rnd(0, 1)) * mult; beep(440, 0.1, 'sine', 0.07);
 }
 function callStrike(f) { // caller: không kích 5 ô quanh player, cảnh báo 1.5s
   const pc = cellAt(player.x, player.y);

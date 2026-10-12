@@ -92,6 +92,17 @@ class CallerFoe extends Foe { // giữ khoảng cách, gọi không kích 5 ô
 class MedicFoe extends Foe { // bám đồng đội yếu nhất, bắn heal 3x3, không bắn thường
   constructor(x, y) { super('M', x, y); }
   behavior(dt) {
+    // buff: player trong 5 tiles gần base -> tập trung heal base
+    if (nearBasePlayer() && base.hp > 0 && base.hp < base.max) {
+      const tx = base.x - this.x, ty = base.y - this.y, td = Math.hypot(tx, ty) || 1;
+      if (this.pauseT <= 0 && td > TILE * 5) {
+        const ml = td;
+        moveSmooth(this, tx / ml * this.effSpeed, ty / ml * this.effSpeed, dt);
+        turnTo(this, Math.atan2(tx / ml, -(ty / ml)), 6, dt);
+      }
+      if (this.cd <= 0 && td < TILE * 14) { this.ang = Math.atan2(tx, -ty); fireHealOrb(this, base); }
+      return;
+    }
     const tgt = weakestAlly(this);
     if (tgt) {
       const tx = tgt.x - this.x, ty = tgt.y - this.y, td = Math.hypot(tx, ty) || 1;
@@ -116,6 +127,25 @@ class MedicFoe extends Foe { // bám đồng đội yếu nhất, bắn heal 3x3
 class ShielderFoe extends Foe { // chỗ an toàn, buff khiên 2.5s cho đồng đội gần player nhất
   constructor(x, y) { super('H', x, y); }
   behavior(dt) {
+    // buff: player trong 5 tiles gần base -> tập trung shield base
+    if (nearBasePlayer() && base.hp > 0) {
+      const tx = base.x - this.x, ty = base.y - this.y, td = Math.hypot(tx, ty) || 1;
+      if (this.pauseT <= 0 && player.alive) {
+        let mx = this.wx * 0.5, my = this.wy * 0.5;
+        if (td > TILE * 6) { mx += tx / td * 0.6; my += ty / td * 0.6; }
+        const ml = Math.hypot(mx, my);
+        if (ml > 0.05) {
+          mx /= ml; my /= ml;
+          moveSmooth(this, mx * this.effSpeed, my * this.effSpeed, dt);
+          turnTo(this, Math.atan2(mx, -my), 6, dt);
+        }
+      }
+      if (this.cd <= 0 && td < TILE * 14 && base.shield <= 0) {
+        this.ang = Math.atan2(tx, -ty);
+        fireShieldOrb(this, base);
+      }
+      return;
+    }
     let ally = null, bd = 1e9;
     for (const o of foes) {
       if (o === this) continue;

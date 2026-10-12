@@ -10,13 +10,15 @@ function updateHUD() {
   $('zoom').textContent = Math.round(cam.zoom * 100) + '%';
 }
 function refreshSlots() {
-  const A = ammo || { mis: { load: 0 }, clay: { load: 0 }, flame: { fuel: 0 }, rail: { charge: 0 } };
+  const A = ammo || { mis: { load: 0 }, mini: { load: 0 }, clay: { load: 0 }, flame: { fuel: 0 }, tesla: { charge: 0 }, rail: { charge: 0 } };
   const flameNm = !up.cold ? '🔥 Flame' : (player && player.cold ? '❄ Cold [F]' : '🔥 Flame [F]');
   const defs = [
-    ['MIS', '1', '🚀' + A.mis.load + ' Missile', true],
-    ['CLAY', '2', '💥' + A.clay.load + ' Claymore', up.clay],
-    ['FLAME', '3', flameNm + ' ' + Math.ceil(A.flame.fuel) + 's', up.flame],
-    ['RAIL', '4', '🔆' + A.rail.charge + ' Lazer', up.rail]];
+    ['MINI', '1', '🔫' + A.mini.load + ' Minigun', up.mini],
+    ['MIS', '2', '🚀' + A.mis.load + ' Missile', true],
+    ['CLAY', '3', '💥' + A.clay.load + ' Claymore', up.clay],
+    ['FLAME', '4', flameNm + ' ' + Math.ceil(A.flame.fuel) + 's', up.flame],
+    ['TESLA', '5', '⚡' + A.tesla.charge + ' Tesla', up.tesla],
+    ['RAIL', '6', '🔆' + A.rail.charge + ' Lazer', up.rail]];
   $('slots').innerHTML = defs.map(([f, k, nm, ok]) =>
     `<span class="slot${ok ? ' on' : ''}${player && player.form === f ? ' cur' : ''}">${ok ? `<kbd>${k}</kbd> ${nm}` : `<kbd>${k}</kbd> 🔒`}</span>`).join('');
 }

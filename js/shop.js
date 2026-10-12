@@ -1,40 +1,54 @@
-// ================= shop.js — 2 tab: vũ khí + đặc tính =================
+// ================= shop.js — 3 tab: vũ khí + đặc tính + đạn dược =================
 const SHOP = [
-  { id: 'multi', tab: 'W', cat: '🚀 MISSILE', name: 'Multimissile', desc: '1 quả ×1.0 → 2 quả ×0.5 mỗi quả, firerate 1s. Mở khóa nhánh nâng cấp.', cost: () => 80,
+  { id: 'caliber', tab: 'W', cat: '🔫 MINIGUN [1]', name: 'Massive Caliber', desc: 'Xuyên wall/tank/crate: 0 → 10% → 20% → 30% → 40% → 50%.', cost: () => [150, 220, 300, 400, 500][up.caliber],
+    avail: () => (up.caliber || 0) < 5, buy: () => { up.caliber++; }, pips: () => [up.caliber, 5] },
+  { id: 'ignit', tab: 'W', cat: '🔫 MINIGUN [1]', name: 'Ignitous Acceleration', desc: 'Xả liên tục 4s/3.5s/3s/2.5s (dừng là tích lại): mỗi hit +1 burn stack kèm +0.1/0.15/0.2/0.25dmg on-hit.', cost: () => [180, 260, 360, 480][up.ignit],
+    avail: () => (up.ignit || 0) < 4, buy: () => { up.ignit++; }, pips: () => [up.ignit, 4] },
+  { id: 'mag', tab: 'W', cat: '🔫 MINIGUN [1]', name: 'Monstrous Magazine', desc: 'Magazine: 60 → 80 → 100 → 120 → 140 viên (1 đạn missile = 20 viên).', cost: () => [160, 240, 340, 460][up.mag],
+    avail: () => (up.mag || 0) < 4, buy: () => { up.mag++; ammo.mini.load = Math.min(miniMag(), ammo.mini.load + 20); }, pips: () => [up.mag, 4] },
+  { id: 'rapid', tab: 'W', cat: '🔫 MINIGUN [1]', name: 'Rapid Fire', desc: 'Tỉ lệ double dmg 10%/20%/30%/40%/50%, tốc đánh 0.09s/0.08s/0.07s/0.06s/0.05s.', cost: () => [170, 250, 350, 470, 600][up.rapid],
+    avail: () => (up.rapid || 0) < 5, buy: () => { up.rapid++; }, pips: () => [up.rapid, 5] },
+  { id: 'multi', tab: 'W', cat: '🚀 MISSILE [2]', name: 'Multimissile', desc: '1 quả ×1.0 → 2 quả ×0.5 mỗi quả, firerate 1s. Mở khóa nhánh nâng cấp.', cost: () => 80,
     avail: () => !up.multi, buy: () => { up.multi = true; } },
-  { id: 'cnt', tab: 'W', cat: '🚀 MISSILE', name: 'Multimissile+', desc: '3 quả ×0.33 → 4 quả ×0.25 (tối đa). Mỗi phát chỉ tốn 1 đạn.', cost: () => [120, 200][up.cnt],
+  { id: 'cnt', tab: 'W', cat: '🚀 MISSILE [2]', name: 'Multimissile+', desc: '3 quả ×0.33 → 4 quả ×0.25 (tối đa). Mỗi phát chỉ tốn 1 đạn.', cost: () => [120, 200][up.cnt],
     avail: () => up.multi && up.cnt < 2, buy: () => { up.cnt++; }, pips: () => [up.cnt, 2] },
-  { id: 'mdmg', tab: 'W', cat: '🚀 MISSILE', name: 'Compound Explosive', desc: '+25% → +50% → +75% dmg mỗi quả.', cost: () => [100, 160, 240][up.dmg],
+  { id: 'mdmg', tab: 'W', cat: '🚀 MISSILE [2]', name: 'Compound Explosive', desc: '+25% → +50% → +75% dmg mỗi quả.', cost: () => [100, 160, 240][up.dmg],
     avail: () => up.multi && up.dmg < 3, buy: () => { up.dmg++; }, pips: () => [up.dmg, 3] },
-  { id: 'rel', tab: 'W', cat: '🚀 MISSILE', name: 'Tactical Launchpad', desc: 'Firerate 1.0 → … → 0.33 → 0.2 → 0.07s/phát. Nạp cả load 3s.', cost: () => [60, 90, 120, 160, 220, 300, 420, 550][up.rel],
-    avail: () => up.rel < 8, buy: () => { up.rel++; }, pips: () => [up.rel, 8] },
-  { id: 'clair', tab: 'W', cat: '💥 CLAYMORE [2]', name: 'Clairvoyance', desc: 'Nón tìm địch: 75° → 90° → 110° → 140° → 180° → 220°.', cost: () => [120, 180, 260, 360, 500][up.clair],
+  { id: 'rel', tab: 'W', cat: '🚀 MISSILE [2]', name: 'Tactical Launchpad', desc: 'Firerate 1.0 → … → 0.33s/phát.', cost: () => [60, 90, 120, 160, 220, 300][up.rel],
+    avail: () => up.rel < MIS_REL_MAX, buy: () => { up.rel++; }, pips: () => [up.rel, MIS_REL_MAX] },
+  { id: 'clair', tab: 'W', cat: '💥 CLAYMORE [3]', name: 'Clairvoyance', desc: 'Nón tìm địch: 75° → 90° → 110° → 140° → 180° → 220°.', cost: () => [120, 180, 260, 360, 500][up.clair],
     avail: () => up.clay && up.clair < 5, buy: () => { up.clair++; }, pips: () => [up.clair, 5] },
-  { id: 'fatal', tab: 'W', cat: '💥 CLAYMORE [2]', name: 'Fatality', desc: 'Tỉ lệ gây 999999999 xuyên block: 0 → 0.5% → 1% → 1.5% → 2% → 2.5%.', cost: () => [150, 220, 300, 400, 500][up.fatal],
+  { id: 'fatal', tab: 'W', cat: '💥 CLAYMORE [3]', name: 'Fatality', desc: 'Tỉ lệ gây 999999999 xuyên block: 0 → 0.5% → 1% → 1.5% → 2% → 2.5%.', cost: () => [150, 220, 300, 400, 500][up.fatal],
     avail: () => up.clay && up.fatal < 5, buy: () => { up.fatal++; }, pips: () => [up.fatal, 5] },
-  { id: 'shrap', tab: 'W', cat: '💥 CLAYMORE [2]', name: 'Shrapnel', desc: 'Nổ văng mảnh 0.8dmg: 0 → 2 → 4 → 6 → 9 mảnh, bay 1-5 tile, tồn tại 40s.', cost: () => [130, 200, 290, 400][up.shrap],
+  { id: 'shrap', tab: 'W', cat: '💥 CLAYMORE [3]', name: 'Shrapnel', desc: 'Nổ văng mảnh 0.8dmg: 0 → 2 → 4 → 6 → 9 mảnh, bay 1-5 tile, tồn tại 40s.', cost: () => [130, 200, 290, 400][up.shrap],
     avail: () => up.clay && up.shrap < 4, buy: () => { up.shrap++; }, pips: () => [up.shrap, 4] },
-  { id: 'psi', tab: 'W', cat: '💥 CLAYMORE [2]', name: 'Psionic Amplify', desc: 'Tăng tầm nổ: +0 → +1 → +2 tile.', cost: () => [140, 220][up.psi],
+  { id: 'psi', tab: 'W', cat: '💥 CLAYMORE [3]', name: 'Psionic Amplify', desc: 'Tăng tầm nổ: +0 → +1 → +2 tile.', cost: () => [140, 220][up.psi],
     avail: () => up.clay && up.psi < 2, buy: () => { up.psi++; }, pips: () => [up.psi, 2] },
-  { id: 'napalm', tab: 'W', cat: '🔥 FLAME [3]', name: 'Napalm', desc: 'Burn tick nhanh hơn: interval -15% → -30% → -50% → -75%.', cost: () => [150, 220, 300, 420][up.napalm],
+  { id: 'napalm', tab: 'W', cat: '🔥 FLAME [4]', name: 'Napalm', desc: 'Burn tick nhanh hơn: interval -15% → -30% → -50% → -75%.', cost: () => [150, 220, 300, 420][up.napalm],
     avail: () => up.flame && up.napalm < 4, buy: () => { up.napalm++; }, pips: () => [up.napalm, 4] },
-  { id: 'cold', tab: 'W', cat: '🔥 FLAME [3]', name: 'ColdFlame', desc: 'Bật/tắt bằng [F] trong dạng flame: mất burn, gây frostburn (chậm tới 95%, địch chịu +50% dmg).', cost: () => 250,
+  { id: 'cold', tab: 'W', cat: '🔥 FLAME [4]', name: 'ColdFlame', desc: 'Bật/tắt bằng [F] trong dạng flame: mất burn, gây frostburn (chậm tới 95%, địch chịu +50% dmg).', cost: () => 250,
     avail: () => up.flame && !up.cold, buy: () => { up.cold = true; } },
-  { id: 'chem', tab: 'W', cat: '🔥 FLAME [3]', name: 'Ignitious Chemical', desc: 'Effect lâu hơn: +25% → +50% → +75% → +100% → +150% thời lượng.', cost: () => [100, 150, 200, 280, 380][up.chem],
+  { id: 'chem', tab: 'W', cat: '🔥 FLAME [4]', name: 'Ignitious Chemical', desc: 'Effect lâu hơn: +25% → +50% → +75% → +100% → +150% thời lượng.', cost: () => [100, 150, 200, 280, 380][up.chem],
     avail: () => up.flame && up.chem < 5, buy: () => { up.chem++; }, pips: () => [up.chem, 5] },
-  { id: 'a_mis', tab: 'W', cat: '🎒 ĐẠN DƯỢC', name: 'Đạn missile +80', desc: 'Nạp vào kho (trần theo storage). 1 phát bắn tốn 1 đạn.', cost: () => 60,
+  { id: 'high', tab: 'W', cat: '⚡ TESLA [5]', name: 'High Current', desc: 'Chain limit: 2 → 3 → 4 → 5 kẻ địch (trong 3 ô, mỗi nấc -30%/falloff).', cost: () => [150, 240, 350][up.high],
+    avail: () => up.tesla && (up.high || 0) < 3, buy: () => { up.high++; }, pips: () => [up.high, 3] },
+  { id: 'malcond', tab: 'W', cat: '⚡ TESLA [5]', name: 'Malconductive Current', desc: 'Giảm hao phí chain: mỗi nấc -30% → -25% → -20% → -15% → -10% dmg.', cost: () => [120, 180, 260, 360][up.malcond],
+    avail: () => up.tesla && (up.malcond || 0) < 4, buy: () => { up.malcond++; }, pips: () => [up.malcond, 4] },
+  { id: 'ball', tab: 'W', cat: '⚡ TESLA [5]', name: 'Ball Lightning', desc: 'Địch chết bởi tesla: 24%/36%/48% để lại sét hòn 3s/4s/5s, r=2/2.5/3 tile, giật 1/2/3 địch 0.4dmg mỗi 0.4s/0.3s/0.2s.', cost: () => [200, 320, 480][up.ball],
+    avail: () => up.tesla && (up.ball || 0) < 3, buy: () => { up.ball++; }, pips: () => [up.ball, 3] },
+  { id: 'a_mis', tab: 'A', cat: '🎒 ĐẠN DƯỢC', name: 'Đạn missile/minigun +80', desc: 'Nạp vào kho chung missile+minigun (1 đạn missile = 20 viên minigun).', cost: () => 60,
     avail: () => true, buy: () => { addStock('mis', 80); } },
-  { id: 'a_clay', tab: 'W', cat: '🎒 ĐẠN DƯỢC', name: 'Claymore +1', desc: 'Thêm 1 claymore vào kho.', cost: () => 50,
+  { id: 'a_clay', tab: 'A', cat: '🎒 ĐẠN DƯỢC', name: 'Claymore +1', desc: 'Thêm 1 claymore vào kho.', cost: () => 50,
     avail: () => up.clay, buy: () => { addStock('clay', 1); } },
-  { id: 'a_gas', tab: 'W', cat: '🎒 ĐẠN DƯỢC', name: 'Gastank +1', desc: 'Thêm 1 bình gas (20s phun).', cost: () => 80,
+  { id: 'a_gas', tab: 'A', cat: '🎒 ĐẠN DƯỢC', name: 'Gastank +1', desc: 'Thêm 1 bình gas (20s phun).', cost: () => 80,
     avail: () => up.flame, buy: () => { addStock('gas', 1); } },
-  { id: 'a_bat', tab: 'W', cat: '🎒 ĐẠN DƯỢC', name: 'Pin +150⚡', desc: 'Nạp điện vào kho (1 bắn tốn 80).', cost: () => 70,
-    avail: () => up.rail, buy: () => { addStock('bat', 150); } },
-  { id: 'pierce', tab: 'W', cat: '🔆 LAZER [4]', name: 'High Frequency', desc: '50% → 75% → 100% bắn xuyên tường gạch (không phá tường).', cost: () => [120, 200, 300][up.pierce],
+  { id: 'a_bat', tab: 'A', cat: '🎒 ĐẠN DƯỢC', name: 'Pin +150⚡', desc: 'Nạp điện kho chung railgun+tesla (tesla 5⚡/tase, rail 80⚡/bắn).', cost: () => 70,
+    avail: () => (up.rail || up.tesla), buy: () => { addStock('bat', 150); } },
+  { id: 'pierce', tab: 'W', cat: '🔆 LAZER [6]', name: 'High Frequency', desc: '50% → 75% → 100% bắn xuyên tường gạch (không phá tường).', cost: () => [120, 200, 300][up.pierce],
     avail: () => up.rail && up.pierce < 3, buy: () => { up.pierce++; }, pips: () => [up.pierce, 3] },
-  { id: 'charge', tab: 'W', cat: '🔆 LAZER [4]', name: 'Electrocharged', desc: 'Dmg 1 → 3 → 6 → 10 → 17 → 28 → 40. 1 bắn tốn 80⚡.', cost: () => [120, 200, 300, 420, 560, 700][up.charge],
+  { id: 'charge', tab: 'W', cat: '🔆 LAZER [6]', name: 'Electrocharged', desc: 'Dmg 1 → 3 → 6 → 10 → 17 → 28 → 40 (lên static chỉ 50%, base có thể one-shot). 1 bắn tốn 80⚡.', cost: () => [120, 200, 300, 420, 560, 700][up.charge],
     avail: () => up.rail && up.charge < 6, buy: () => { up.charge++; }, pips: () => [up.charge, 6] },
-  { id: 'bpierce', tab: 'W', cat: '🔆 LAZER [4]', name: 'Phased Frequency', desc: 'Lazer tràn qua các block (vd 10dmg vào 4|4|4|4|4 còn 4|4|2|0|0). Chưa mua thì kẹt block như đạn thường.', cost: () => 200,
+  { id: 'bpierce', tab: 'W', cat: '🔆 LAZER [6]', name: 'Phased Frequency', desc: 'Lazer tràn qua các block (vd 10dmg vào 4|4|4|4|4 còn 4|4|2|0|0). Chưa mua thì kẹt block như đạn thường.', cost: () => 200,
     avail: () => up.rail && !up.bpierce, buy: () => { up.bpierce = true; } },
   { id: 'hp', tab: 'C', cat: '🧬 ĐẶC TÍNH', name: 'Tactical Armor', desc: 'Block máu: [0.5,0.5] → [1,1] → [1,1,1] → [1.5,1.5,1] → [2,2,1] (tổng 1→2→3→4→5hp). Mua là morph block + hồi phần tăng thêm.', cost: () => [100, 180, 280, 400][up.hp],
     avail: () => up.hp < 4,
@@ -60,14 +74,17 @@ function openShop(canNext, unlockMsg) {
   state = 'shop';
   $('shop').classList.remove('hidden');
   $('btnNext').style.display = canNext ? '' : 'none';
+  // shop sau khi thắng: bắt buộc qua màn (ẩn nút Đóng, base đã nổ nên đóng là kẹt game)
+  $('btnCloseShop').style.display = canNext ? 'none' : '';
   $('shopSub').textContent = (canNext ? ('Màn ' + (level + 1) + ' xong! Mua đồ rồi quẩy tiếp.') : ('Shop (màn ' + (level + 1) + ').')) + (unlockMsg || '');
   $('goldIcon').src = IMG.gold;
   refreshShop(); updateHUD(); refreshSlots();
 }
 function closeShop() {
   if (state !== 'shop') return;
+  if (base.hp <= 0) return; // đã thắng thì không cho đóng (tránh kẹt ở state shop)
   $('shop').classList.add('hidden');
-  if (player.alive && base.hp > 0) state = 'play';
+  if (player.alive) state = 'play';
 }
 function refreshShop() {
   $('shopGoldN').textContent = gold;
@@ -95,5 +112,6 @@ function refreshShop() {
 }
 $('tabW').onclick = () => { shopTab = 'W'; refreshShop(); };
 $('tabC').onclick = () => { shopTab = 'C'; refreshShop(); };
+$('tabA').onclick = () => { shopTab = 'A'; refreshShop(); };
 $('btnNext').onclick = () => { $('shop').classList.add('hidden'); startLevel(level + 1); state = 'play'; };
 $('btnCloseShop').onclick = closeShop;

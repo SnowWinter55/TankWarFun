@@ -13,6 +13,20 @@ const DRONE_SIGHT = TILE * 15;   // drone ngửi thấy bạn trong 15 tile
 const MIS_PX = TILE * 4, MIS_CHASE_PX = TILE * 2, MIS_LOCK_R = TILE * 2;
 // Railgun player: firerate 5s, 1 bắn 80⚡, pin 300, nạp 0.5s.
 const LASER_RELOAD = 5.0, RAIL_COST = 80, RAIL_BAT = 300, RAIL_RELOAD = 0.5;
+// Minigun: ray vàng 1px, 0.1dmg/đạn, firerate 0.1s, mag 60, chung kho missile (1 đạn missile = 20 viên minigun), nạp 3s.
+const MINI = { dmg: 0.1, rate: 0.1, load: 60, reload: 3.0 };
+const MINI_PER_MIS = 20;
+const MINI_MAG = [60, 80, 100, 120, 140]; // Monstrous Magazine lvl0-4
+const RAPID_CHANCE = [0, 0.1, 0.2, 0.3, 0.4, 0.5]; // Rapid Fire: tỉ lệ double dmg lvl0-5
+const RAPID_RATE = [0.1, 0.09, 0.08, 0.07, 0.06, 0.05]; // Rapid Fire: tốc đánh lvl0-5
+const CALIBER_PIERCE = [0, 0.1, 0.2, 0.3, 0.4, 0.5]; // Massive Caliber lvl0-5
+const IGNIT_TIME = [1e9, 4, 3.5, 3, 2.5]; // Ignitous Acceleration: giữ cò liên tục
+const IGNIT_DMG = [0, 0.1, 0.15, 0.2, 0.25];
+// Tesla: tầm 5 tile, 5⚡/tase, 0.4dmg, không firerate (tick cố định), nạp 3s.
+const TESLA = { dmg: 0.4, range: TILE * 5, cost: 5, reload: 3.0, tick: 0.15, chainR: TILE * 3, chainBase: 2 };
+const TESLA_FALL = [0.30, 0.25, 0.20, 0.15, 0.10]; // Malconductive: hao phí chain mỗi nấc
+const BALL = { chance: [0, 0.24, 0.36, 0.48], dur: [0, 3, 4, 5], radius: [0, TILE * 2, TILE * 2.5, TILE * 3],
+  max: [0, 1, 2, 3], tick: [0.4, 0.4, 0.3, 0.2], dmg: 0.4 };
 // Đạn dược: missile 1 đạn/phát, load 80, nạp 3s • clay 1/load nạp 4s • gas 20s nạp 5s.
 const MIS_LOAD = 80, MIS_RELOAD = 3.0, CLAY_RELOAD = 4.0;
 const FLAME_TANK = 20, FLAME_RELOAD = 5.0;
@@ -82,13 +96,14 @@ const LEVELS = [
   { name: 'Railgun địch', baseHP: 10, maxAlive: 12, spawn: [1.4, 2.4], comp: { N: 5, E: 3, T: 2, S: 2, W: 1, H: 1, F: 2, M: 1, C: 1, G: 2 }, crates: 50, bricks: 16, bonus: 320 },
   { name: 'Railgun Elite', baseHP: 12, maxAlive: 12, spawn: [1.2, 2.2], comp: { N: 5, E: 3, T: 2, S: 2, W: 1, H: 1, F: 2, M: 1, C: 1, G: 1, V: 2 }, crates: 50, bricks: 16, bonus: 380 },
 ];
-const UNLOCK_LEVEL = { clay: 1, flame: 5, rail: 9 }; // phá màn này -> mở vũ khí
-const UNLOCK_NAME = { clay: '💥 CLAYMORE [2]', flame: '🔥 FLAMETHROWER [3]', rail: '🔆 LAZER [4]' };
+const UNLOCK_LEVEL = { mini: -1, clay: 1, flame: 5, tesla: 7, rail: 9 }; // mini starter; tesla phá màn 8 mở
+const UNLOCK_NAME = { mini: '🔫 MINIGUN [1]', clay: '💥 CLAYMORE [3]', flame: '🔥 FLAMETHROWER [4]', tesla: '⚡ TESLA [5]', rail: '🔆 LAZER [6]' };
 
 // Missile upgrade: số lượng -> dmg/quả; firerate; railgun charge/pierce.
 const MIS_COUNT_DMG = { 1: 1.0, 2: 0.5, 3: 0.33, 4: 0.25 };
 const MIS_DMG_MUL = [1, 1.25, 1.5, 1.75];
-const MIS_FIRERATE = [1.0, 0.9, 0.8, 0.7, 0.6, 0.47, 0.33, 0.2, 0.07]; // 8 nấc nâng cấp
+const MIS_FIRERATE = [1.0, 0.9, 0.8, 0.7, 0.6, 0.47, 0.33, 0.2, 0.07]; // idx6=0.33 lock, idx8 chỉ cheat oldmissile
+const MIS_REL_MAX = 6;
 const RAIL_PIERCE = [0, 0.5, 0.75, 1.0];
 const RAIL_MUL = [1, 3, 6, 10, 17, 28, 40]; // Electrocharged lvl0-6
 
@@ -114,6 +129,8 @@ const IMG = {
   brick:  P('asset/tank/palebricktile(veryUninterested).png'),
   base:   P('asset/tank/redbaseonpalebricktile.png'), // tint xanh lúc vẽ
   redMis: P('asset/tank/redtankmissile.png'),
+  redMini: P('asset/tank/redtankminigun.png'),
+  redTesla: P('asset/tank/redtanktesla.png'),
   redRail: P('asset/tank/redtankrailgun.png'),
   redClay: P('asset/tank/redtankclaymore.png'),
   redFlame: P('asset/tank/redtankflamethrower.png'),

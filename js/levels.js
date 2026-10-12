@@ -9,27 +9,35 @@ function lvlDef(i) {
 }
 function resetAll() {
   up = defUp(); ammo = defAmmo(); gold = 0; score = 0; kills = 0; level = 0;
-  ammo.mis.stock = MIS_LOAD;
+  ammo.mis.stock = MIS_LOAD; ammo.mini.load = MINI.load; ammo.tesla.charge = 0;
+  oldMissileLvl = -1;
 }
 function defUp() {
   return { multi: false, cnt: 0, dmg: 0, rel: 0, rail: false, pierce: 0, charge: 0, bpierce: false,
-    clay: false, clair: 0, fatal: 0, shrap: 0, psi: 0, flame: false, napalm: 0, cold: false, chem: 0,
+    mini: true, caliber: 0, ignit: 0, mag: 0, rapid: 0, clay: false, clair: 0, fatal: 0, shrap: 0, psi: 0,
+    flame: false, napalm: 0, cold: false, chem: 0, tesla: false, high: 0, malcond: 0, ball: 0,
     hp: 0, stor: 0, frate: 0, crate: 0, cdmg: 0, rld: 0 };
 }
 function defAmmo() {
   return {
     mis: { load: MIS_LOAD, stock: MIS_LOAD, rel: 0 },
+    mini: { load: MINI.load, stock: 0, rel: 0 },
     clay: { load: 0, stock: 0, rel: 0 },
     flame: { fuel: 0, tanks: 0, rel: 0 },
+    tesla: { charge: RAIL_BAT, stock: 0, rel: 0 },
     rail: { charge: 0, stock: 0, rel: 0 } };
 }
 function startLevel(i) {
   level = i;
   const def = lvlDef(i);
   buildMap(def);
-  bullets = []; flames = []; beams = []; foes = []; drones = [];
+  bullets = []; flames = []; beams = []; balls = []; shieldReact = []; foes = []; drones = [];
   parts = []; floats = []; pickups = []; warnings = []; booms = [];
+  // giữ form hiện tại nếu còn unlock, không thì về MINIGUN
+  const keepForm = (typeof player !== 'undefined' && player) ? player.form : 'MINI';
   player = new Player(W / 2, H - 64);
+  if (keepForm === 'MIS' || (keepForm === 'CLAY' && up.clay) || (keepForm === 'FLAME' && up.flame) || (keepForm === 'TESLA' && up.tesla) || (keepForm === 'RAIL' && up.rail)) player.form = keepForm;
+  else player.form = 'MINI';
   refillLoads();
   queue = [];
   Object.keys(def.comp).forEach(k => { for (let j = 0; j < def.comp[k]; j++) queue.push(k); });
@@ -70,6 +78,7 @@ function levelClear() {
   let unlock = '';
   if (level === UNLOCK_LEVEL.clay && !up.clay) { up.clay = true; ammo.clay.stock++; ammo.clay.load = 1; unlock += ' 🔓 MỞ KHÓA ' + UNLOCK_NAME.clay + '!'; }
   if (level === UNLOCK_LEVEL.flame && !up.flame) { up.flame = true; ammo.flame.tanks++; ammo.flame.fuel = FLAME_TANK; unlock += ' 🔓 MỞ KHÓA ' + UNLOCK_NAME.flame + '!'; }
+  if (level === UNLOCK_LEVEL.tesla && !up.tesla) { up.tesla = true; ammo.rail.stock += RAIL_BAT; ammo.tesla.charge = RAIL_BAT; unlock += ' 🔓 MỞ KHÓA ' + UNLOCK_NAME.tesla + '!'; }
   if (level === UNLOCK_LEVEL.rail && !up.rail) { up.rail = true; ammo.rail.stock += RAIL_BAT; ammo.rail.charge = RAIL_BAT; unlock += ' 🔓 MỞ KHÓA ' + UNLOCK_NAME.rail + '!'; }
   log('Phá base màn ' + (level + 1) + '! +' + def.bonus + ' vàng.' + unlock);
   beep(660, 0.2, 'square', 0.1); setTimeout(() => beep(880, 0.25, 'square', 0.1), 180);

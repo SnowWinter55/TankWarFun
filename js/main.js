@@ -8,8 +8,8 @@ const PICK_IMG = { medbox: 'med', gold: 'gold', a_mis: 'ammMis', a_clay: 'ammCla
 // ---------- input ----------
 const keys = {};
 const cheatBuf = [];
-function feedCheatKey(k) { // cheat ẩn: "vjp67" lặng lẽ +3667 vàng; "noob69" lặng lẽ 9999999dmg vào base địch
-  cheatBuf.push(k); if (cheatBuf.length > 8) cheatBuf.shift();
+function feedCheatKey(k) { // cheat ẩn: "vjp67" +3667 vàng; "noob69" 9999999dmg base; "oldmissile" max firerate 1 màn
+  cheatBuf.push(k); if (cheatBuf.length > 12) cheatBuf.shift();
   const s = cheatBuf.join('');
   if (s.endsWith('vjp67') && typeof gold === 'number') {
     cheatBuf.length = 0;
@@ -19,7 +19,15 @@ function feedCheatKey(k) { // cheat ẩn: "vjp67" lặng lẽ +3667 vàng; "noob
   }
   if (s.endsWith('noob69') && state === 'play' && base && base.hp > 0) {
     cheatBuf.length = 0;
+    base.shield = 0; base.saved = true; // cheat xuyên qua khiên cứu base
     hurtBase(9999999, true);
+    return true;
+  }
+  if (s.endsWith('oldmissile') && state === 'play') {
+    cheatBuf.length = 0;
+    oldMissileLvl = level;
+    log('⚡ Cheat oldmissile: missile đạt tốc bắn max 0.07s trong màn ' + (level + 1) + '!');
+    beep(880, 0.15, 'square', 0.1);
     return true;
   }
   return false;
@@ -35,10 +43,12 @@ function onKeyDown(e) {
     if (k === 'p' && state === 'pause') { state = 'play'; hideAll(); }
     return;
   }
-  if (k === '1') { player.form = 'MIS'; refreshSlots(); beep(500, 0.06); }
-  if (k === '2') { if (up.clay) { player.form = 'CLAY'; refreshSlots(); beep(500, 0.06); } else { beep(160, 0.1); log('Claymore khóa — phá màn ' + (UNLOCK_LEVEL.clay + 1) + ' (Elite) để mở.'); } }
-  if (k === '3') { if (up.flame) { player.form = 'FLAME'; refreshSlots(); beep(500, 0.06); } else { beep(160, 0.1); log('Flame khóa — phá màn ' + (UNLOCK_LEVEL.flame + 1) + ' (Shielder) để mở.'); } }
-  if (k === '4') { if (up.rail) { player.form = 'RAIL'; refreshSlots(); beep(900, 0.1); } else { beep(160, 0.1); log('Lazer khóa — phá màn ' + (UNLOCK_LEVEL.rail + 1) + ' (Railgun) để mở.'); } }
+  if (k === '1') { player.form = 'MINI'; refreshSlots(); beep(500, 0.06); }
+  if (k === '2') { player.form = 'MIS'; refreshSlots(); beep(500, 0.06); }
+  if (k === '3') { if (up.clay) { player.form = 'CLAY'; refreshSlots(); beep(500, 0.06); } else { beep(160, 0.1); log('Claymore khóa — phá màn ' + (UNLOCK_LEVEL.clay + 1) + ' (Elite) để mở.'); } }
+  if (k === '4') { if (up.flame) { player.form = 'FLAME'; refreshSlots(); beep(500, 0.06); } else { beep(160, 0.1); log('Flame khóa — phá màn ' + (UNLOCK_LEVEL.flame + 1) + ' để mở.'); } }
+  if (k === '5') { if (up.tesla) { player.form = 'TESLA'; refreshSlots(); beep(900, 0.1); } else { beep(160, 0.1); log('Tesla khóa — phá màn ' + (UNLOCK_LEVEL.tesla + 1) + ' để mở.'); } }
+  if (k === '6') { if (up.rail) { player.form = 'RAIL'; refreshSlots(); beep(900, 0.1); } else { beep(160, 0.1); log('Lazer khóa — phá màn ' + (UNLOCK_LEVEL.rail + 1) + ' (Railgun) để mở.'); } }
   if (k === ' ' || k === 'k') firePress();
   if (k === 'f') {
     if (player.form !== 'FLAME') log('Vào dạng flamethrower [3] rồi mới bật/tắt ColdFlame [F].');
@@ -120,11 +130,11 @@ function breakCrate(k) {
   if (r < 0.20) pickups.push({ kind: 'gold', val: 10 + Math.floor(Math.random() * 11), x, y, t: 0 });
   else if (r < 0.30) pickups.push({ kind: 'medbox', x, y, t: 0 });
   else if (r < 0.44) {
-    // chỉ rớt đạn của vũ khí đã mở khóa (missile luôn có)
+    // chỉ rớt đạn của vũ khí đã mở khóa (missile/mini luôn có, tesla/rail chung pin)
     const pool = [['a_mis', 30]];
     if (up.clay) pool.push(['a_clay', 1]);
     if (up.flame) pool.push(['a_gas', 1]);
-    if (up.rail) pool.push(['a_bat', 120]);
+    if (up.rail || up.tesla) pool.push(['a_bat', 120]);
     const [kind, n] = pool[Math.floor(Math.random() * pool.length)];
     pickups.push({ kind, n, x, y, t: 0 });
   }
@@ -134,10 +144,17 @@ function update(dt) {
   time += dt;
   if (player.cd > 0) player.cd -= dt;
   if (player.laserCd > 0) player.laserCd -= dt;
+  if (player.teslaCd > 0) player.teslaCd -= dt;
   if (player.clayCd > 0) player.clayCd -= dt;
   if (player.inv > 0) player.inv -= dt;
   if (player.dryT > 0) player.dryT -= dt;
+  if (base && base.shield > 0) base.shield -= dt;
   tickReloads(dt);
+  // minigun: dừng bắn >0.3s thì tích lại từ đầu
+  if (player.miniGap !== undefined) {
+    player.miniGap += dt;
+    if (player.miniGap > 0.3) player.miniHold = 0;
+  }
 
   // --- player di chuyển mượt ---
   if (player.alive) {
@@ -157,8 +174,11 @@ function update(dt) {
     } else { player.mvx = 0; player.mvy = 0; }
   }
   const A = ammo;
-  if ((keys[' '] || keys['k'] || touchFire) && player.alive) {
-    if (player.form === 'MIS') fireMissiles();
+  const firing = (keys[' '] || keys['k'] || touchFire) && player.alive;
+  if (firing) {
+    if (player.form === 'MINI') fireMinigun();
+    else if (player.form === 'MIS') fireMissiles();
+    else if (player.form === 'TESLA') fireTesla();
     else if (player.form === 'FLAME') {
       if (A.flame.fuel > 0 && A.flame.rel <= 0) {
         A.flame.fuel -= dt;
@@ -202,7 +222,8 @@ function update(dt) {
       b.vx = Math.sin(b.ang) * b.speed; b.vy = -Math.cos(b.ang) * b.speed;
     } else if ((b.kind === 'heal' || b.kind === 'shield') && b.target) {
       const t = b.target;
-      const aliveT = (foes.indexOf(t) >= 0 || drones.indexOf(t) >= 0);
+      const isBase = b.isBase || t === base;
+      const aliveT = isBase ? (base.hp > 0) : (foes.indexOf(t) >= 0 || drones.indexOf(t) >= 0);
       if (!aliveT) { bullets.splice(i, 1); continue; }
       const want = Math.atan2(t.x - b.x, -(t.y - b.y));
       const diff = ((want - b.ang + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
@@ -212,16 +233,20 @@ function update(dt) {
       if (Math.hypot(t.x - b.x, t.y - b.y) < 20) {
         bullets.splice(i, 1);
         if (b.kind === 'heal') {
-          let n = 0;
-          const tg = foes.concat(drones);
-          for (const f of tg) {
-            if (Math.hypot(f.x - t.x, f.y - t.y) < MEDIC.radius) { healAlly(f, MEDIC.heal); n++; addFloat(f.x, f.y - 20, '+1', '#7CFC00'); }
+          if (isBase) { healAlly(base, MEDIC.heal); addFloat(base.x, base.y - 24, '+1 BASE', '#7CFC00'); }
+          else {
+            let n = 0;
+            const tg = foes.concat(drones);
+            for (const f of tg) {
+              if (Math.hypot(f.x - t.x, f.y - t.y) < MEDIC.radius) { healAlly(f, MEDIC.heal); n++; addFloat(f.x, f.y - 20, '+1', '#7CFC00'); }
+            }
+            if (n === 0) healAlly(t, MEDIC.heal);
           }
           explode(t.x, t.y, 10, ['#7CFC00', '#fff']); beep(700, 0.15, 'sine', 0.08);
-          if (n === 0) healAlly(t, MEDIC.heal);
         } else {
-          t.shield = SHIELD.dur; t.hit = 1;
-          addFloat(t.x, t.y - 22, 'SHIELD!', '#7df9ff'); explode(t.x, t.y, 10, ['#7df9ff', '#fff']); beep(600, 0.15, 'sine', 0.08);
+          if (isBase) { base.shield = SHIELD.dur; addFloat(base.x, base.y - 28, 'BASE SHIELD!', '#7df9ff'); }
+          else { t.shield = SHIELD.dur; t.hit = 1; addFloat(t.x, t.y - 22, 'SHIELD!', '#7df9ff'); }
+          explode(t.x, t.y, 10, ['#7df9ff', '#fff']); beep(600, 0.15, 'sine', 0.08);
         }
         updateHUD(); continue;
       }
@@ -283,7 +308,7 @@ function update(dt) {
         else { crates[kc].hit = 1; updateHUD(); }
       } else if (hitBase(p.x, p.y)) {
         dead = true;
-        touchStruct(base, () => { base.hp = 0; levelClear(); });
+        if (!(base.shield > 0)) touchStruct(base, () => { hurtBase(9999, 'pierce'); });
         updateHUD();
       }
     }
@@ -316,8 +341,10 @@ function update(dt) {
       b.tick -= dt;
       if (b.tick <= 0) {
         b.tick = burnInterval(b.stacks);
-        deplete(base, burnTickDmg(base)); updateHUD();
-        if (base.hp <= 0) { base.hp = 0; levelClear(); }
+        if (!(base.shield > 0)) {
+          deplete(base, burnTickDmg(base)); updateHUD();
+          if (base.hp <= 0) { base.hp = 0; levelClear(); }
+        }
       }
     }
   }
@@ -363,6 +390,33 @@ function update(dt) {
           ang: a, foe: false, life: SHRAP_LIFE, dmg: SHRAP_DMG, size: 8 });
       }
       updateHUD();
+    }
+  }
+
+  // --- sét hòn (Ball Lightning): giật tối đa N địch trong r mỗi tick ---
+  for (let i = balls.length - 1; i >= 0; i--) {
+    const bl = balls[i]; bl.t += dt; bl.cd -= dt;
+    if (bl.t >= bl.dur) { balls.splice(i, 1); continue; }
+    if (bl.cd <= 0) {
+      bl.cd = bl.tick;
+      const inR = foes.concat(drones).filter(f => Math.hypot(f.x - bl.x, f.y - bl.y) < bl.r).slice(0, bl.max);
+      for (const f of inR) {
+        damageFoe(f, BALL.dmg, 'block');
+        beams.push({ pts: [{ x: bl.x, y: bl.y }, { x: f.x, y: f.y }], t: 0, life: 0.15, tesla: true });
+        teslaHitReact(f, BALL.dmg, f.hp + BALL.dmg);
+        if (f.hp <= 0) maybeDropBall(f.x, f.y);
+      }
+      if (inR.length) { beep(1200, 0.06, 'sawtooth', 0.05); explode(bl.x, bl.y, 5, ['#c9a7ff', '#fff']); }
+    }
+  }
+  // --- shielder phản ứng tesla: 0.2s sau khiên all đồng minh (trừ base) ---
+  for (let i = shieldReact.length - 1; i >= 0; i--) {
+    shieldReact[i].t -= dt;
+    if (shieldReact[i].t <= 0) {
+      shieldReact.splice(i, 1);
+      for (const f of foes.concat(drones)) { f.shield = Math.max(f.shield, SHIELD.dur); f.hit = 1; }
+      addFloat(player.x, player.y - 30, 'SHIELD WALL!', '#7df9ff');
+      beep(500, 0.2, 'sine', 0.09);
     }
   }
 
@@ -469,6 +523,22 @@ function draw() {
     ctx.save(); ctx.globalAlpha = Math.min(1, 0.2 * base.burn.stacks + 0.1 * Math.sin(time * 14));
     ctx.drawImage(spr.burn, base.x - 9, base.y - 34, 18, 18); ctx.restore();
   }
+  if (base.shield > 0 && spr.shieldFx) {
+    ctx.save(); ctx.globalAlpha = 0.5 + 0.4 * Math.sin(time * 10);
+    ctx.drawImage(spr.shieldFx, base.x - 22, base.y - 22, 44, 44); ctx.restore();
+  }
+  // sét hòn
+  for (const bl of (balls || [])) {
+    ctx.save();
+    ctx.globalAlpha = 0.7 + 0.3 * Math.sin(time * 12);
+    ctx.strokeStyle = '#c9a7ff'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(bl.x, bl.y, 10 + 2 * Math.sin(time * 9), 0, 7); ctx.stroke();
+    ctx.fillStyle = '#e8dcff';
+    ctx.beginPath(); ctx.arc(bl.x, bl.y, 5, 0, 7); ctx.fill();
+    ctx.globalAlpha = 0.25; ctx.strokeStyle = '#c9a7ff'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(bl.x, bl.y, bl.r, 0, 7); ctx.stroke();
+    ctx.restore();
+  }
 
   for (const k of crates) {
     const x = k.c * TILE, y = k.r * TILE;
@@ -572,12 +642,12 @@ function draw() {
       else { ctx.fillStyle = '#7df9ff'; ctx.font = 'bold 10px sans-serif'; ctx.fillText('❄', o.x - 5, o.y - 24); }
     }
   }
-  // player đỏ 2 dạng (xoay mượt, bất tử nhấp nháy)
+  // player đỏ 6 dạng (xoay mượt, bất tử nhấp nháy)
   if (player.alive && !(player.inv > 0 && Math.floor(time * 10) % 2 === 0)) {
-    const PI = { MIS: 'redMis', CLAY: 'redClay', FLAME: 'redFlame', RAIL: 'redRail' };
-    drawSpr(spr[PI[player.form]], player.x, player.y, 36, 36, player.ang);
+    const PI = { MINI: 'redMini', MIS: 'redMis', CLAY: 'redClay', FLAME: 'redFlame', TESLA: 'redTesla', RAIL: 'redRail' };
+    drawSpr(spr[PI[player.form]] || spr.redRail, player.x, player.y, 36, 36, player.ang);
     ctx.fillStyle = '#fff'; ctx.font = 'bold 9px sans-serif';
-    ctx.fillText({ MIS: 'MIS [1]', CLAY: 'CLAY [2]', FLAME: 'FLAME [3]', RAIL: 'LAZER [4]' }[player.form], player.x - 24, player.y - 22);
+    ctx.fillText({ MINI: 'MINI [1]', MIS: 'MIS [2]', CLAY: 'CLAY [3]', FLAME: 'FLAME [4]', TESLA: 'TESLA [5]', RAIL: 'LAZER [6]' }[player.form], player.x - 24, player.y - 22);
     // HPBar player chia vạch theo block
     const bw = 46, bh = 7, bx = player.x - bw / 2, by = player.y - 32;
     ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
@@ -605,7 +675,25 @@ function draw() {
     .forEach(p => drawSpr(spr[p.img], p.x, p.y, 12, 12, p.ang, p.cold ? 'hue-rotate(170deg) saturate(2)' : null));
   for (const bm of beams) {
     ctx.globalAlpha = 1 - bm.t / bm.life;
-    if (bm.clay) {
+    if (bm.mini) {
+      // minigun: ray yellow 1px (CSS vẽ 1px)
+      ctx.strokeStyle = '#ffe45e'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(bm.x1, bm.y1); ctx.lineTo(bm.x2, bm.y2); ctx.stroke();
+    } else if (bm.tesla && bm.pts) {
+      // tesla chain: zigzag điện xanh-trắng
+      ctx.strokeStyle = '#7df9ff'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(bm.pts[0].x, bm.pts[0].y);
+      for (let i = 1; i < bm.pts.length; i++) {
+        const px = bm.pts[i - 1], q = bm.pts[i];
+        const mx = (px.x + q.x) / 2 + rnd(-6, 6), my = (px.y + q.y) / 2 + rnd(-6, 6);
+        ctx.lineTo(mx, my); ctx.lineTo(q.x, q.y);
+      }
+      ctx.stroke();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(bm.pts[0].x, bm.pts[0].y);
+      for (let i = 1; i < bm.pts.length; i++) ctx.lineTo(bm.pts[i].x, bm.pts[i].y);
+      ctx.stroke();
+    } else if (bm.clay) {
       ctx.strokeStyle = '#ffb35b'; ctx.lineWidth = 10;
       ctx.beginPath(); ctx.moveTo(bm.x1, bm.y1); ctx.lineTo(bm.x2, bm.y2); ctx.stroke();
     } else if (bm.thermal) {
@@ -679,5 +767,5 @@ $('btnStart').onclick = () => {
 };
 $('overlay').classList.remove('hidden');
 $('ovText').innerHTML = `Bạn là <b style="color:#ff6b6b">tank đỏ</b>, phá <b style="color:#7CFC00">base xanh</b> qua 11 màn (mỗi màn 1 loại địch mới), nhặt <b>vàng + đạn</b> mua đồ.<br><br>
-  <kbd>WASD</kbd> chạy • <kbd>1</kbd> missile • <kbd>2</kbd>/<kbd>3</kbd>/<kbd>4</kbd> mở dần theo màn • <kbd>Space</kbd> bắn/đặt • <kbd>T</kbd> shop • <kbd>R</kbd> chơi lại màn`;
+  <kbd>WASD</kbd> chạy • <kbd>1</kbd> minigun <kbd>2</kbd> missile <kbd>3</kbd>/<kbd>4</kbd>/<kbd>5</kbd>/<kbd>6</kbd> mở dần theo màn • <kbd>Space</kbd> bắn/đặt • <kbd>T</kbd> shop • <kbd>R</kbd> chơi lại màn`;
 loadAll().then(() => { resetAll(); startLevel(0); loadSettings(); refreshShakeBtn(); fitCanvas(); requestAnimationFrame(loop); });

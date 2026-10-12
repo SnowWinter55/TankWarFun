@@ -47,7 +47,7 @@
 <body>
 <header>
   <h1>🔴 Tank Đỏ — Level + Shop + Đạn dược</h1>
-  <p class="sub">Map <b>42×28</b> • <kbd>1</kbd> missile <kbd>2</kbd> claymore <kbd>3</kbd> flame (+<kbd>F</kbd> cold) <kbd>4</kbd> lazer • <kbd>T</kbd> shop <kbd>R</kbd> chơi lại màn</p>
+  <p class="sub">Map <b>42×28</b> • <kbd>1</kbd> minigun <kbd>2</kbd> missile <kbd>3</kbd> claymore <kbd>4</kbd> flame (+<kbd>F</kbd> cold) <kbd>5</kbd> tesla <kbd>6</kbd> lazer • <kbd>T</kbd> shop <kbd>R</kbd> chơi lại màn</p>
 </header>
 
 <main id="wrap">
@@ -77,6 +77,7 @@
     <div style="display:flex;gap:8px;">
       <button id="tabW">🔫 VŨ KHÍ</button>
       <button id="tabC" class="gold">🧬 ĐẶC TÍNH</button>
+      <button id="tabA">🎒 ĐẠN DƯỢC</button>
     </div>
     <div id="shopItems"></div>
     <div style="display:flex;gap:8px;">
@@ -92,10 +93,14 @@
       <div id="helpInner" style="font-size:13px;line-height:1.65;opacity:.9;margin-top:10px;">
         📷 <b>Camera 32×18</b> theo player • <b>lăn chuột / <kbd>Z</kbd></b> zoom • minimap góc phải • thanh máu chia vạch trên đầu player • HUD đè lên canvas • <kbd>H</kbd> panel này.<br>
         🕹️ <b>Di chuyển mượt:</b> giữ <kbd>WASD</kbd> (mobile chạm 1 ngón, 2 ngón bắn), cạ tường tự trượt. Bạn <b>3.4 tile/s</b>.<br>
-        🎒 <b>Đạn dược:</b> missile 1 đạn/phát, 1 load 80 đạn, nạp 3s • claymore 1/load, nạp 4s • flamethrower 1 gastank phun 20s, nạp 5s • railgun pin 300, 1 bắn tốn 80, firerate 5s, nạp 0.5s. Kho có trần (nâng ở tab Đặc tính), hết đạn mua trong shop hoặc nhặt từ thùng.<br>
+        🎒 <b>Đạn dược (tab 3):</b> missile/minigun chung kho (mini mag 60, missile load 80, nạp 3s) • claymore 1/load nạp 4s • gas 20s nạp 5s • rail/tesla chung pin (rail 80/bắn nạp 0.5s, tesla 5/tase tầm 5 tile nạp 3s, xả liên tục).<br>
+        🔫 <b>[1] Minigun:</b> ray vàng 1px, 0.1dmg/đạn 0.1s, chặn bởi crate (1 đạn missile = 20 viên), Massive Caliber (xuyên 10-50%) • Ignitous Acceleration (xả 4/3.5/3/2.5s +1 burn &amp; +0.1/0.15/0.2/0.25dmg) • Monstrous Magazine (mag 60/80/100/120/140) • Rapid Fire (double 10-50%, tốc 0.09-0.05s).<br>
+        🚀 <b>[2] Missile:</b> Multimissile → + → Compound → Tactical Launchpad tới 0.33s. Homing 2 tile.<br>
+        ⚡ <b>[5] Tesla:</b> 0.4dmg/tase, chain 2 địch trong 3 ô (70%/40%, mỗi nấc -30%): High Current (chain 3/4/5) • Malconductive (-30/-25/-20/-15/-10%) • Ball Lightning (24/36/48% sét hòn 3/4/5s, r 2/2.5/3, giật 1/2/3 × 0.4dmg mỗi 0.4/0.3/0.2s). Shielder bị giật khiên all đồng minh (trừ base) sau 0.2s.<br>
         🚀 <b>[1] Missile:</b> Multimissile (2×0.5) → Multimissile+ (3×0.33, 4×0.25) → Compound Explosive → Tactical Launchpad tới 0.07s. Homing 2 tile (dí còn nửa tốc).<br>
         💥 <b>[2] Claymore</b> (phá màn 2 mở): nón 75° tầm 2 tile, nổ 3dmg, không upgrade dmg — chỉ upgrade cơ chế: Clairvoyance (nón tới 220°) • Fatality (999999999 xuyên block) • Shrapnel (mảnh 0.8dmg, 40s) • Psionic (tầm +2). 🔥 <b>[3] Flame</b> (phá màn 6 mở): burn/frost + Napalm/Cold/Chem — <b>chỉ burn mới đốt all block</b>, lửa nóng đốt cả thùng/base (kháng 80%). 🔆 <b>[4] Lazer</b> (phá màn 10 mở, để cuối shop): xuyên vô cực, High Frequency (xuyên tường) • Electrocharged (1→40dmg) • Phased Frequency (xuyên block).<br>
-        🛒 <b>Shop 2 tab:</b> 🔫 VŨ KHÍ • 🧬 ĐẶC TÍNH: Tactical Armor ([0.5,0.5]→[2,2,1]) • Ammunition Supply • Compound Turret • Effective Callout • Tactical Effectiveness • Optimized Reload. Crit áp mọi dmg (CRIT!).<br>
+        🛒 <b>Shop 3 tab:</b> 🔫 VŨ KHÍ • 🧬 ĐẶC TÍNH • 🎒 ĐẠN DƯỢC: Tactical Armor ([0.5,0.5]→[2,2,1]) • Ammunition Supply • Compound Turret • Effective Callout • Tactical Effectiveness • Optimized Reload. Crit áp mọi dmg (CRIT!).<br>
+        🛡️ <b>Base:</b> railgun lên static chỉ 50% (maxed one-shot base) • base chí tử gọi shielder dựng khiên negate 1 lần/màn (từ sau màn shielder) • medic/shielder buff 25% nạp khi bạn áp sát base (5 tiles) để heal/shield base.<br>
         🧱 <b>Health block 2 chiều:</b> dmg thường kẹt block; burn đốt all block; F.resist/thùng/base kháng burn 80% (0.04/tick).<br>
         👾 <b>Địch:</b> thường [1,1,1] • elite [3,2,2] burst 2 phát 3x • twin 2 đạn song song 3x • shotgun 4 đạn 125° (cường hóa 7 đạn 135°) • weaver + drone kamikaze (nhanh +35%) • caller không kích 5 ô (báo 1.5s) • fireresist 1 block • medic heal 3x3 (nạp 4s, đạn 15 tile/s) • railgun ngắm xuyên tường range vô hạn • railgun elite: xuyên block + dmg ×2 + 7hp • shielder khiên 2.5s.
       </div>

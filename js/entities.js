@@ -45,20 +45,23 @@ class Tank {
   }
 }
 
-// Player: tank đỏ 4 dạng vũ khí.
+// Player: tank đỏ 6 dạng vũ khí.
 class Player extends Tank {
   constructor(x, y) {
     super(x, y, 0, PLAYER_SPEED, PLAYER_HPB[up.hp]);
-    this.form = 'MIS';
-    this.cd = 0; this.laserCd = 0; this.clayCd = 0; this.flameT = 0;
+    this.form = 'MINI';
+    this.cd = 0; this.laserCd = 0; this.teslaCd = 0; this.clayCd = 0; this.flameT = 0;
     this.cold = false; this.dryT = 0;
+    this.miniHold = 0; this.miniGap = 0;
     this.mvx = 0; this.mvy = 0;
   }
   ammoText() { // chuỗi đạn cho HUD pill
     const A = ammo;
+    if (this.form === 'MINI') return A.mini.rel > 0 ? ('NẠP ' + A.mini.rel.toFixed(1) + 's') : (A.mini.load + '/' + A.mis.stock + ' đạn');
     if (this.form === 'MIS') return A.mis.rel > 0 ? ('NẠP ' + A.mis.rel.toFixed(1) + 's') : (A.mis.load + '/' + A.mis.stock + ' đạn');
     if (this.form === 'CLAY') return A.clay.rel > 0 ? ('NẠP ' + A.clay.rel.toFixed(1) + 's') : ('CLAY ' + A.clay.load + ' (+' + A.clay.stock + ')');
     if (this.form === 'FLAME') return A.flame.rel > 0 ? ('NẠP ' + A.flame.rel.toFixed(1) + 's') : ('GAS ' + A.flame.fuel.toFixed(0) + 's (+' + A.flame.tanks + '⛽)');
+    if (this.form === 'TESLA') return A.tesla.rel > 0 ? ('NẠP ' + A.tesla.rel.toFixed(1) + 's') : (A.tesla.charge + '/' + A.rail.stock + '⚡');
     if (this.form === 'RAIL') return A.rail.rel > 0 ? ('NẠP ' + A.rail.rel.toFixed(1) + 's') : (A.rail.charge + '/' + A.rail.stock + '⚡');
     return '-';
   }

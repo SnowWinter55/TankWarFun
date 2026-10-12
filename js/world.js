@@ -24,6 +24,7 @@ function buildMap(def) {
   const bc = Math.floor(COLS / 2);
   base = { c: bc, r: 1, x: bc * TILE + TILE / 2, y: 1 * TILE + TILE / 2,
     hp: def.baseHP, max: def.baseHP, blocks: [def.baseHP], bhp: [def.baseHP],
+    shield: 0, saved: false,
     burn: { stacks: 0, dur: 0, tick: 0 }, notFlammable: true }; // base INotFlammable
   map[1][bc - 2] = 'B'; map[1][bc + 2] = 'B'; map[2][bc - 2] = 'B'; map[2][bc + 2] = 'B';
   for (let i = 0; i < def.bricks; i++) {
