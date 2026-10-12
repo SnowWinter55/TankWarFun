@@ -174,6 +174,7 @@ function fireMinigun() {
   updateHUD();
 }
 // Tesla: chain sét, tầm 5 tile, 5⚡/tase, tick liên tục, chain trong 3 ô.
+// Buff phá obstacle: chỉ khi trong tầm không có tank địch mới giật crate/base gần nhất, dmg 1/2, không chain.
 function fireTesla() {
   const A = ammo.tesla;
   if (player.teslaCd > 0 || A.rel > 0) return;
@@ -185,7 +186,29 @@ function fireTesla() {
   // nạn nhân đầu: gần nhất trong tầm 5 tile (bất kể hướng — tesla tự tìm)
   let first = null, bd = TESLA.range;
   for (const f of allF) { const d = Math.hypot(f.x - player.x, f.y - player.y); if (d < bd) { bd = d; first = f; } }
-  if (!first) { beep(180, 0.05, 'sawtooth', 0.04); updateHUD(); return; }
+  if (!first) {
+    let ox = null, obd = TESLA.range, oIsBase = false, oCrate = null;
+    for (const k of crates) {
+      const cx = k.c * TILE + 16, cy = k.r * TILE + 16;
+      const d = Math.hypot(cx - player.x, cy - player.y);
+      if (d < obd) { obd = d; ox = { x: cx, y: cy }; oIsBase = false; oCrate = k; }
+    }
+    if (base.hp > 0) {
+      const d = Math.hypot(base.x - player.x, base.y - player.y);
+      if (d < obd) { obd = d; ox = { x: base.x, y: base.y }; oIsBase = true; oCrate = null; }
+    }
+    if (!ox) { beep(180, 0.05, 'sawtooth', 0.04); updateHUD(); return; }
+    const half = TESLA.dmg * 0.5;
+    if (oIsBase) hurtBase(half);
+    else {
+      deplete(oCrate, Math.min(half, blockRemain(oCrate))); oCrate.hit = 1;
+      if (oCrate.hp <= 0) { const idx = crates.indexOf(oCrate); if (idx >= 0) breakCrate(idx); }
+    }
+    beams.push({ pts: [{ x: player.x, y: player.y }, ox], t: 0, life: 0.18, tesla: true });
+    explode(ox.x, ox.y, 6, ['#7df9ff', '#fff', '#c9a7ff']);
+    beep(1400, 0.08, 'sawtooth', 0.07);
+    updateHUD(); return;
+  }
   const chainN = teslaChainLimit(), fall = teslaFalloff();
   const chained = [first];
   let cur = first;
