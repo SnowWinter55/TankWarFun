@@ -7,6 +7,7 @@ function updateHUD() {
   $('score').textContent = score;
   $('foes').textContent = foes.length + (drones.length ? ' (+' + drones.length + '🛸)' : '');
   $('basehp').textContent = fmt(Math.max(0, base ? base.hp : 0)) + '/' + (base ? base.max : 0);
+  $('zoom').textContent = Math.round(cam.zoom * 100) + '%';
 }
 function refreshSlots() {
   const A = ammo || { mis: { load: 0 }, clay: { load: 0 }, flame: { fuel: 0 }, rail: { charge: 0 } };
@@ -25,6 +26,11 @@ function showPause() {
   $('overlay').classList.remove('hidden'); $('btnStart').textContent = '▶ Tiếp tục';
 }
 function hideAll() { $('overlay').classList.add('hidden'); $('shop').classList.add('hidden'); }
+function toggleHelp() { // H ẩn/hiện panel hướng dẫn (overlay trên canvas)
+  $('helpPanel').classList.toggle('hidden');
+}
+$('btnHelp').onclick = toggleHelp;
+$('btnHelpClose').onclick = toggleHelp;
 
 // ---------- setting screenshake ----------
 function loadSettings() {

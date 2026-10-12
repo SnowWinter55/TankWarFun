@@ -35,6 +35,7 @@ function startLevel(i) {
   Object.keys(def.comp).forEach(k => { for (let j = 0; j < def.comp[k]; j++) queue.push(k); });
   for (let j = queue.length - 1; j > 0; j--) { const t = Math.floor(Math.random() * (j + 1));[queue[j], queue[t]] = [queue[t], queue[j]]; }
   spawnT = 1.5; time = 0; shake = 0;
+  cam.x = player.x; cam.y = player.y; // snap camera đầu màn (giữ zoom)
   spawnFoe('N'); spawnFoe('N');
   updateHUD(); refreshSlots();
   log('Màn ' + (i + 1) + ' ' + def.name + ': base ' + def.baseHP + 'hp, địch ' + queue.length + '+2 con.');

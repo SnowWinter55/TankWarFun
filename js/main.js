@@ -49,11 +49,68 @@ function onKeyDown(e) {
     }
   }
   if (k === 't') openShop(false);
+  if (k === 'z') cycleZoom(); // Z đổi nấc zoom
+  if (k === 'h') toggleHelp(); // H ẩn/hiện hướng dẫn
   if (k === 'p') { state = 'pause'; showPause(); }
   else if (k === 'r') retryLevel();
 }
 addEventListener('keydown', onKeyDown, true); // capture: chạy trước mọi thứ, IME không nuốt được
 addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+
+// ---------- camera 16x9 + zoom + fullscreen ----------
+function viewScale() { // px world -> px màn hình, 32x18 tile vừa khít × zoom
+  return Math.max(cv.width / (32 * TILE), cv.height / (18 * TILE)) * cam.zoom;
+}
+function adjustZoom(f) {
+  cam.zoom = Math.max(0.5, Math.min(2.5, cam.zoom * f));
+  updateHUD();
+}
+function cycleZoom() { // Z đổi nấc 1x/1.5x/2x
+  cam.zidx = (cam.zidx + 1) % ZOOMS.length;
+  cam.zoom = ZOOMS[cam.zidx];
+  log('🔍 Zoom ' + Math.round(cam.zoom * 100) + '%');
+  updateHUD();
+}
+function updateCamera(dt) {
+  const s = viewScale();
+  const vw = cv.width / s, vh = cv.height / s; // khung nhìn (world px)
+  let tx = player.x, ty = player.y;
+  tx = vw >= W ? W / 2 : Math.max(vw / 2, Math.min(W - vw / 2, tx));
+  ty = vh >= H ? H / 2 : Math.max(vh / 2, Math.min(H - vh / 2, ty));
+  const k = Math.min(1, dt * 5); // bám mượt
+  cam.x += (tx - cam.x) * k; cam.y += (ty - cam.y) * k;
+}
+function screenToWorld(sx, sy) { // touch/chuột (client px) -> world px
+  const r = cv.getBoundingClientRect(), s = viewScale();
+  const bx = (sx - r.left) * (cv.width / r.width), by = (sy - r.top) * (cv.height / r.height);
+  return { x: cam.x + (bx - cv.width / 2) / s, y: cam.y + (by - cv.height / 2) / s };
+}
+function fitCanvas() { // wrap fullscreen -> canvas bằng viewport
+  const r = $('wrap').getBoundingClientRect();
+  cv.width = Math.max(320, Math.floor(r.width));
+  cv.height = Math.max(240, Math.floor(r.height));
+}
+addEventListener('resize', fitCanvas);
+cv.addEventListener('wheel', e => { // lăn chuột zoom
+  e.preventDefault();
+  adjustZoom(e.deltaY > 0 ? 1 / 1.15 : 1.15);
+}, { passive: false });
+// touch: 1 ngón chạy tới điểm chạm, 2 ngón bắn (tọa độ đã qua camera)
+let touchMove = null, touchFire = false;
+cv.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const t = [...e.touches];
+  if (t.length >= 2) touchFire = true;
+  else { const w = screenToWorld(t[0].clientX, t[0].clientY); touchMove = w; }
+}, { passive: false });
+cv.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const w = screenToWorld(e.touches[0].clientX, e.touches[0].clientY);
+  touchMove = w;
+}, { passive: false });
+cv.addEventListener('touchend', e => {
+  if (e.touches.length === 0) { touchMove = null; touchFire = false; }
+}, { passive: false });
 
 // ---------- update ----------
 function breakCrate(k) {
@@ -87,6 +144,11 @@ function update(dt) {
     let dx = 0, dy = 0;
     if (keys['a']) dx -= 1; if (keys['d']) dx += 1;
     if (keys['w']) dy -= 1; if (keys['s']) dy += 1;
+    if (touchMove) { // touch: chạy về điểm chạm (world coords đã qua camera)
+      dx = touchMove.x - player.x; dy = touchMove.y - player.y;
+      const tl = Math.hypot(dx, dy);
+      if (tl > 12) { dx /= tl; dy /= tl; } else { dx = 0; dy = 0; }
+    }
     const l = Math.hypot(dx, dy);
     if (l > 0) {
       dx /= l; dy /= l;
@@ -95,7 +157,7 @@ function update(dt) {
     } else { player.mvx = 0; player.mvy = 0; }
   }
   const A = ammo;
-  if ((keys[' '] || keys['k']) && player.alive) {
+  if ((keys[' '] || keys['k'] || touchFire) && player.alive) {
     if (player.form === 'MIS') fireMissiles();
     else if (player.form === 'FLAME') {
       if (A.flame.fuel > 0 && A.flame.rel <= 0) {
@@ -351,6 +413,7 @@ function update(dt) {
   for (let i = floats.length - 1; i >= 0; i--) { const f = floats[i]; f.t += dt; f.y -= 26 * dt; if (f.t > 1.3) floats.splice(i, 1); }
   crates.forEach(k => k.hit = Math.max(0, k.hit - dt * 4));
   shake = Math.max(0, shake - dt * 22);
+  updateCamera(dt); // camera bám player (draw dùng ngay frame này)
   if (Math.floor(time * 10) !== Math.floor((time - dt) * 10)) updateHUD(); // refresh đạn mỗi 0.1s
 }
 
@@ -387,7 +450,10 @@ function drawFoeStatus(f) {
 }
 function draw() {
   ctx.save();
-  if (shake > 0 && settings.shake) ctx.translate(rnd(-shake, shake) * 0.4, rnd(-shake, shake) * 0.4);
+  const s = viewScale(); // camera 32x18 tile
+  let shx = 0, shy = 0;
+  if (shake > 0 && settings.shake) { shx = rnd(-shake, shake) * 0.4; shy = rnd(-shake, shake) * 0.4; }
+  ctx.setTransform(s, 0, 0, s, cv.width / 2 - (cam.x + shx) * s, cv.height / 2 - (cam.y + shy) * s);
   for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
     const x = c * TILE, y = r * TILE, t = map[r][c];
     const img = t === 'B' ? spr.brick : t === 'D' ? spr.dirt : t === 'Y' ? spr.mud : spr.grass;
@@ -512,6 +578,23 @@ function draw() {
     drawSpr(spr[PI[player.form]], player.x, player.y, 36, 36, player.ang);
     ctx.fillStyle = '#fff'; ctx.font = 'bold 9px sans-serif';
     ctx.fillText({ MIS: 'MIS [1]', CLAY: 'CLAY [2]', FLAME: 'FLAME [3]', RAIL: 'LAZER [4]' }[player.form], player.x - 24, player.y - 22);
+    // HPBar player chia vạch theo block
+    const bw = 46, bh = 7, bx = player.x - bw / 2, by = player.y - 32;
+    ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
+    const n = player.blocks.length;
+    let acc = 0;
+    for (let i = 0; i < n; i++) {
+      const frac = player.blocks[i] > 0 ? Math.max(0, player.bhp[i] / player.blocks[i]) : 0;
+      const wseg = bw / n;
+      ctx.fillStyle = frac > 0.5 ? '#ff5b5b' : frac > 0 ? '#ff8c42' : '#333';
+      if (frac > 0) ctx.fillRect(bx + acc, by, wseg * frac, bh);
+      acc += wseg;
+    }
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
+    for (let i = 1; i < n; i++) {
+      const lx = bx + bw * i / n;
+      ctx.beginPath(); ctx.moveTo(lx, by); ctx.lineTo(lx, by + bh); ctx.stroke();
+    }
   }
   for (const b of bullets) {
     drawSpr(spr[b.img] || spr.bNorm, b.x, b.y, b.size || 12, b.size || 12, b.ang, b.tint || null);
@@ -547,6 +630,37 @@ function draw() {
     ctx.strokeText(f.txt, f.x, f.y); ctx.fillText(f.txt, f.x, f.y);
   }
   ctx.globalAlpha = 1; ctx.textAlign = 'left';
+  drawMinimap(); // minimap góc phải (tọa độ màn hình)
+  ctx.restore();
+}
+// ---------- minimap ----------
+function drawMinimap() {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  const mw = 168, mh = Math.round(mw * H / W);
+  const x0 = cv.width - mw - 10, y0 = 10;
+  const tw = mw / COLS, th = mh / ROWS;
+  ctx.save();
+  ctx.globalAlpha = 0.88;
+  ctx.fillStyle = 'rgba(5,8,5,.72)'; ctx.fillRect(x0 - 3, y0 - 3, mw + 6, mh + 6);
+  const MCOL = { B: '#8a8a8a', G: '#4a6b34', D: '#7a5a30', Y: '#6b5a44' };
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++)
+    { ctx.fillStyle = MCOL[map[r][c]] || '#222'; ctx.fillRect(x0 + c * tw, y0 + r * th, tw + 0.5, th + 0.5); }
+  ctx.fillStyle = '#a06a2c';
+  for (const k of crates) ctx.fillRect(x0 + k.c * tw, y0 + k.r * th, tw, th);
+  ctx.fillStyle = '#ff3b3b'; // cảnh báo không kích
+  for (const w of warnings) for (const k of w.cells) ctx.fillRect(x0 + k.c * tw, y0 + k.r * th, tw, th);
+  const dot = (x, y, s, col) => { ctx.fillStyle = col; ctx.fillRect(x0 + x / W * mw - s / 2, y0 + y / H * mh - s / 2, s, s); };
+  dot(base.x, base.y, 5, '#7CFC00');
+  for (const f of foes) dot(f.x, f.y, 3, '#7CFC00');
+  for (const o of drones) dot(o.x, o.y, 2, '#ff8c42');
+  dot(player.x, player.y, 4, '#ff5b5b');
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
+  ctx.strokeRect(x0 + player.x / W * mw - 2, y0 + player.y / H * mh - 2, 4, 4);
+  // khung khung nhìn camera
+  const s = viewScale();
+  const vx = x0 + (cam.x - cv.width / s / 2) / W * mw, vy = y0 + (cam.y - cv.height / s / 2) / H * mh;
+  ctx.strokeStyle = 'rgba(255,255,255,.8)';
+  ctx.strokeRect(vx, vy, cv.width / s / W * mw, cv.height / s / H * mh);
   ctx.restore();
 }
 
@@ -566,4 +680,4 @@ $('btnStart').onclick = () => {
 $('overlay').classList.remove('hidden');
 $('ovText').innerHTML = `Bạn là <b style="color:#ff6b6b">tank đỏ</b>, phá <b style="color:#7CFC00">base xanh</b> qua 11 màn (mỗi màn 1 loại địch mới), nhặt <b>vàng + đạn</b> mua đồ.<br><br>
   <kbd>WASD</kbd> chạy • <kbd>1</kbd> missile • <kbd>2</kbd>/<kbd>3</kbd>/<kbd>4</kbd> mở dần theo màn • <kbd>Space</kbd> bắn/đặt • <kbd>T</kbd> shop • <kbd>R</kbd> chơi lại màn`;
-loadAll().then(() => { resetAll(); startLevel(0); loadSettings(); refreshShakeBtn(); requestAnimationFrame(loop); });
+loadAll().then(() => { resetAll(); startLevel(0); loadSettings(); refreshShakeBtn(); fitCanvas(); requestAnimationFrame(loop); });
