@@ -173,6 +173,26 @@ class ShielderFoe extends Foe { // chỗ an toàn, buff khiên 2.5s cho đồng 
     }
   }
 }
+class MissileFoe extends Foe { // pháo đạn đạo tầm xa: tìm chỗ an toàn như medic, lock 1s -> flash 1.25s -> 1 missile 2.5dmg 3x3
+  constructor(x, y) { super('R', x, y); }
+  behavior(dt) {
+    const dx = player.x - this.x, dy = player.y - this.y, d = Math.hypot(dx, dy) || 1;
+    if (this.pauseT <= 0 && player.alive) {
+      let mx = this.wx * 0.4, my = this.wy * 0.4;
+      if (d < TILE * 9) { mx += -dx / d; my += -dy / d; } // quá gần: lùi ra chỗ an toàn
+      else if (d > TILE * 15) { mx += dx / d * 0.5; my += dy / d * 0.5; } // quá xa: tiến lại gần
+      else { mx += -dy / d * 0.4; my += dx / d * 0.4; } // giữ khoảng cách, strafe
+      const ml = Math.hypot(mx, my);
+      if (ml > 0.05) {
+        mx /= ml; my /= ml;
+        moveSmooth(this, mx * this.effSpeed, my * this.effSpeed, dt);
+        turnTo(this, Math.atan2(mx, -my), 6, dt);
+      }
+    }
+    if (player.alive) this.ang = Math.atan2(player.x - this.x, -(player.y - this.y)); // nòng luôn hướng player
+    if (this.cd <= 0 && player.alive && d < MISL.range) lockMissile(this);
+  }
+}
 class RailgunFoe extends Foe { // tìm chỗ an toàn, foreswing 1s hiện aim, bắn xuyên tường
   constructor(x, y) { super('G', x, y); }
   behavior(dt) {
@@ -204,4 +224,4 @@ class RailgunEliteFoe extends RailgunFoe { // như railgun + xuyên block player
   constructor(x, y) { super(x, y); this.applyKind('V'); }
 }
 Foe.TYPES = { N: NormalFoe, E: EliteFoe, T: TwinFoe, S: ShotgunFoe, W: WeaverFoe,
-  C: CallerFoe, F: FireResistFoe, M: MedicFoe, G: RailgunFoe, H: ShielderFoe, V: RailgunEliteFoe };
+  C: CallerFoe, F: FireResistFoe, M: MedicFoe, G: RailgunFoe, H: ShielderFoe, V: RailgunEliteFoe, R: MissileFoe };

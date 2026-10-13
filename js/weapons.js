@@ -362,12 +362,15 @@ function nearBasePlayer() { // player trong 5 tiles gần base
   if (!player || !player.alive || !base || base.hp <= 0) return false;
   return Math.hypot(player.x - base.x, player.y - base.y) < TILE * 5;
 }
+function medicHeal() { return (base && base.enraged ? ENRAGE.healMul : 1) * MEDIC.heal; } // enrage: heal ×4
+function shieldDur() { return (base && base.enraged ? ENRAGE.shieldMul : 1) * SHIELD.dur; } // enrage: khiên ×4
+function enrageCdMul() { return (base && base.enraged ? ENRAGE.cdMul : 1); } // enrage: nạp ×0.1
 function fireHealOrb(f, target) { // medic: đạn hồi máu homing 15 tile/s (base focus + 25% nạp)
   const a = Math.atan2(target.x - f.x, -(target.y - f.y));
   const isBase = target === base;
   bullets.push({ kind: 'heal', img: 'bNorm', tint: 'hue-rotate(90deg)', x: f.x + Math.sin(a) * 18, y: f.y - Math.cos(a) * 18,
     vx: Math.sin(a) * MEDIC.orbSpeed, vy: -Math.cos(a) * MEDIC.orbSpeed, ang: a, foe: false, healer: true, target, isBase, life: 6, size: 12 });
-  const mult = (isBase && nearBasePlayer()) ? 0.25 : 1;
+  const mult = ((isBase && nearBasePlayer()) ? 0.25 : 1) * enrageCdMul();
   f.cd = (MEDIC.cd + rnd(0, 1)) * mult; beep(520, 0.1, 'sine', 0.07);
 }
 function fireShieldOrb(f, target) { // shielder: orb khiên homing (base focus + 25% nạp)
@@ -375,20 +378,71 @@ function fireShieldOrb(f, target) { // shielder: orb khiên homing (base focus +
   const isBase = target === base;
   bullets.push({ kind: 'shield', img: 'bNorm', tint: 'hue-rotate(200deg) saturate(2)', x: f.x + Math.sin(a) * 18, y: f.y - Math.cos(a) * 18,
     vx: Math.sin(a) * TILE * 3.5, vy: -Math.cos(a) * TILE * 3.5, ang: a, foe: false, healer: true, target, isBase, life: 7, size: 13 });
-  const mult = (isBase && nearBasePlayer()) ? 0.25 : 1;
+  const mult = ((isBase && nearBasePlayer()) ? 0.25 : 1) * enrageCdMul();
   f.cd = (SHIELD.cd + rnd(0, 1)) * mult; beep(440, 0.1, 'sine', 0.07);
 }
-function callStrike(f) { // caller: không kích 5 ô quanh player, cảnh báo 1.5s
+function crossCells(c, r) { // dấu cộng 5 tile (gốc + 4 hướng) trong khung 3x3
+  const out = [];
+  for (const [dc, dr] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    const cc = c + dc, rr = r + dr;
+    if (inMap(cc, rr) && map[rr][cc] !== 'B') out.push({ c: cc, r: rr });
+  }
+  return out;
+}
+function boxCells(c, r) { // 3x3 đầy 9 tile
+  const out = [];
+  for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+    const cc = c + dc, rr = r + dr;
+    if (inMap(cc, rr) && map[rr][cc] !== 'B') out.push({ c: cc, r: rr });
+  }
+  return out;
+}
+function expandCells(centers, cross) { // nở tâm thành cross-5 hoặc box-3x3, khử trùng
+  const out = [], seen = new Set();
+  for (const k of centers) for (const q of (cross ? crossCells(k.c, k.r) : boxCells(k.c, k.r))) {
+    const key = q.c + ',' + q.r;
+    if (!seen.has(key)) { seen.add(key); out.push(q); }
+  }
+  return out;
+}
+function callStrike(f) { // caller: 7 không kích, warning dấu cộng, báo 1.5s rồi nổ tức thì
   const pc = cellAt(player.x, player.y);
-  const cells = [{ c: pc.c, r: pc.r }];
-  for (let t = 0; t < 20 && cells.length < AIR.tiles; t++) {
+  const centers = [{ c: pc.c, r: pc.r }];
+  for (let t = 0; t < 30 && centers.length < AIR.tiles; t++) {
     const c = pc.c + Math.floor(rnd(-2, 3)), r = pc.r + Math.floor(rnd(-2, 3));
     if (!inMap(c, r) || map[r][c] === 'B') continue;
-    if (cells.some(k => k.c === c && k.r === r)) continue;
-    cells.push({ c, r });
+    if (centers.some(k => k.c === c && k.r === r)) continue;
+    centers.push({ c, r });
   }
-  warnings.push({ cells, t: AIR.warn, total: AIR.warn });
+  warnings.push({ centers, cross: true, cells: expandCells(centers, true), phase: 'static', t: AIR.warn, total: AIR.warn });
   addFloat(f.x, f.y - 22, 'KHÔNG KÍCH!', '#ff6b6b');
   beep(240, 0.3, 'sawtooth', 0.1);
   f.cd = AIR.cd + rnd(0, 2);
+}
+function lockMissile(f) { // missile foe: lock bám player 1s -> freeze -> nháy 1.25s -> phóng đạn đạo
+  const pc = cellAt(player.x, player.y);
+  warnings.push({ centers: [{ c: pc.c, r: pc.r }], offsets: [{ dc: 0, dr: 0 }], cross: false,
+    cells: expandCells([{ c: pc.c, r: pc.r }], false), phase: 'lock', t: MISL.lock, total: MISL.lock, sx: f.x, sy: f.y });
+  addFloat(f.x, f.y - 22, 'KHÓA MỤC TIÊU!', '#ff6b6b');
+  beep(880, 0.2, 'sawtooth', 0.08);
+  f.cd = MISL.cd + rnd(0, 2);
+}
+function fireArti(sx, sy, tx, ty) { // đạn đạo bay thẳng tới đích, xuyên địa hình
+  const a = Math.atan2(tx - sx, -(ty - sy));
+  const d = Math.hypot(tx - sx, ty - sy);
+  bullets.push({ kind: 'arti', img: 'bArti', x: sx, y: sy, vx: Math.sin(a) * MISL.speed, vy: -Math.cos(a) * MISL.speed,
+    ang: a, foe: true, life: d / MISL.speed + 0.6, dmg: MISL.dmg, size: 22, tx, ty });
+  beep(180, 0.4, 'sawtooth', 0.12);
+}
+function artiImpact(b) { // chạm đích: nổ 3x3, 2.5dmg block-gate (hpb gate) + phá thùng
+  const cc = Math.floor(b.tx / TILE), rr = Math.floor(b.ty / TILE);
+  const cells = boxCells(cc, rr);
+  booms.push({ cells, t: 0.8, total: 0.8 });
+  explode(b.tx, b.ty, 26); beep(70, 0.4, 'sawtooth', 0.15); shake = Math.min(10, shake + 4);
+  const pc = cellAt(player.x, player.y);
+  if (player.alive && cells.some(k => k.c === pc.c && k.r === pc.r)) hurtPlayer(b.dmg != null ? b.dmg : MISL.dmg);
+  for (let j = crates.length - 1; j >= 0; j--) {
+    if (cells.some(k => k.c === crates[j].c && k.r === crates[j].r)) { explode(crates[j].c * TILE + 16, crates[j].r * TILE + 16, 10); crates.splice(j, 1); }
+  }
+  updateHUD();
 }

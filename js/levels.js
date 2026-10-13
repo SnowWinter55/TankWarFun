@@ -3,7 +3,7 @@ function lvlDef(i) {
   if (i < LEVELS.length) return LEVELS[i];
   const k = i - LEVELS.length + 1; // màn vô tận: mix all + scale
   const comp = { N: 5 + k, E: 3 + k, T: 2 + k, S: 2 + k, W: 1 + k, H: 1 + k,
-    F: 2 + k, M: 1 + k, C: 1 + k, G: 1 + k, V: Math.floor(k / 2) };
+    F: 2 + k, M: 1 + k, C: 1 + k, G: 1 + k, V: Math.floor(k / 2), R: 1 + k };
   return { name: 'Vô tận +' + k, baseHP: 12 + 2 * k, maxAlive: 12, spawn: [1.2, 2.2],
     comp, crates: 50, bricks: 16, bonus: 380 + 60 * k };
 }
@@ -45,8 +45,35 @@ function startLevel(i) {
   spawnT = 1.5; time = 0; shake = 0;
   cam.x = player.x; cam.y = player.y; // snap camera đầu màn (giữ zoom)
   spawnFoe('N'); spawnFoe('N');
+  levelTotal = queue.length + foes.length; endlessT = 0; // tổng địch màn (cho enrage + endless)
   updateHUD(); refreshSlots();
   log('Màn ' + (i + 1) + ' ' + def.name + ': base ' + def.baseHP + 'hp, địch ' + queue.length + '+2 con.');
+}
+function checkEnrage() { // base <50%hp mà địch còn >25% tổng (màn 8+): burst 2 medic + 1 shield, buff medic/shield
+  if (!base || base.hp <= 0 || base.enraged || level < ENRAGE.lvl) return;
+  if (base.hp >= base.max * ENRAGE.hpFrac) return;
+  if ((foes.length + queue.length) <= levelTotal * ENRAGE.foeFrac) return;
+  base.enraged = true;
+  spawnFoe('M'); spawnFoe('M'); spawnFoe('H');
+  addFloat(base.x, base.y - 34, 'BASE ENRAGE!', '#ff6b6b');
+  log('🔥 Base địch enrage: +2 medic +1 shield, medic/shield nạp ×0.1, heal/khiên ×4!');
+  beep(220, 0.4, 'sawtooth', 0.13);
+  updateHUD();
+}
+function tickEndless(dt) { // endless: hết sạch địch ban đầu -> mỗi 3s đẻ ngẫu nhiên 1 tank (vô hạn)
+  if (level < LEVELS.length || !base || base.hp <= 0) return;
+  if (queue.length > 0 || foes.length > 0) { endlessT = 0; return; }
+  endlessT += dt;
+  if (endlessT >= ENDLESS_RESPAWN) {
+    endlessT = 0;
+    const def = lvlDef(level), bag = [];
+    for (const k of Object.keys(def.comp)) for (let j = 0; j < def.comp[k]; j++) bag.push(k);
+    if (!bag.length) return;
+    if (spawnFoe(bag[Math.floor(Math.random() * bag.length)])) {
+      log('🌀 Endless: base đẻ thêm 1 tank!');
+      updateHUD();
+    } else endlessT = ENDLESS_RESPAWN - 1; // kẹt cửa -> thử lại sau 1s
+  }
 }
 function spawnFoe(kind) { // đẻ từ base xanh
   const mk = (x, y) => {

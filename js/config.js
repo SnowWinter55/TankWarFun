@@ -5,7 +5,7 @@ const TILE = 32, COLS = 42, ROWS = 28, W = COLS * TILE, H = ROWS * TILE;
 const PLAYER_SPEED = TILE * 3.4;
 const FOE_SPEED = { N: TILE * 1.25, E: TILE * 1.55, T: TILE * 1.4, S: TILE * 1.1,
   W: TILE * 1.7, C: TILE * 1.3, F: TILE * 1.25, M: TILE * 1.2, G: TILE * 1.0,
-  H: TILE * 1.4, V: TILE * 1.0 };
+  H: TILE * 1.4, V: TILE * 1.0, R: TILE * 1.0 };
 const DRONE_SPEED = TILE * 2.6 * 1.35; // weaver drone nhanh hơn 35%
 const DRONE_SIGHT = TILE * 15;   // drone ngửi thấy bạn trong 15 tile
 
@@ -66,21 +66,29 @@ const FOE_STATS = {
   S: { blocks: [2, 1, 1] }, W: { blocks: [1, 1, 1] }, C: { blocks: [1, 1, 1] },
   F: { blocks: [3] }, M: { blocks: [1, 1, 1] }, G: { blocks: [2, 2, 1] },
   H: { blocks: [1, 1, 1] }, V: { blocks: [3, 2, 2] }, // railgun elite = archetype elite
+  R: { blocks: [1, 1, 1] },
 };
 const DRONE_HP = [1, 1];
 const GOLD_VAL = { N: 15, E: 25, T: 30, S: 35, W: 50, C: 30, F: 20, M: 40,
-  G: 45, H: 35, V: 60, drone: 10 };
+  G: 45, H: 35, V: 60, R: 50, drone: 10 };
 const SCORE_VAL = { N: 50, E: 80, T: 60, S: 60, W: 100, C: 60, F: 40, M: 100,
-  G: 90, H: 70, V: 120, drone: 20 };
+  G: 90, H: 70, V: 120, R: 100, drone: 20 };
 
-// Caller không kích: 5 ô, cảnh báo 1.5s, nổ = 1 dmg (bằng landmine), nạp 5s.
-const AIR = { tiles: 5, warn: 1.5, cd: 5, dmg: 1 };
+// Caller không kích: 7 điểm, warning dấu cộng (cross 5 tile), báo 1.5s rồi nổ tức thì 1dmg, nạp 5s.
+// Missile foe đạn đạo: lock bám player 1s -> freeze -> nháy 1.25s -> missile 25 tile/s, nổ 3x3 gây 2.5dmg (hpb gate).
+const AIR = { tiles: 7, warn: 1.5, cd: 5, dmg: 1 };
+const MISL = { lock: 1.0, flash: 1.25, cd: 6, dmg: 2.5, speed: TILE * 25, range: TILE * 16 };
 // Medic: hồi 1hp chia đều block cho 3x3 tile, nạp 4s, đạn bay 15 tile/s.
 const MEDIC = { cd: 4.0, heal: 1, radius: TILE * 1.5, orbSpeed: TILE * 15 };
 // Railgun địch: nạp 6s, xuyên địa hình 100%, range vô hạn (như player), foreswing 1s.
 const FOE_RAIL = { cd: 6.0, aim: 1.0, dmg: 1.5, range: 2600 };
 // Shielder: nạp 5s, khiên chặn mọi dmg 2.5s.
 const SHIELD = { cd: 5.0, dur: 2.5 };
+// Base enrage (màn 8+): base <50%hp mà địch còn >25% tổng -> spawn 2 medic + 1 shield (1 lần/màn),
+// toàn bộ medic/shield nạp ×0.1 + heal/shield ×4.
+const ENRAGE = { lvl: 7, hpFrac: 0.5, foeFrac: 0.25, cdMul: 0.1, healMul: 4, shieldMul: 4 };
+// Endless: hết sạch địch ban đầu -> mỗi 3s base đẻ ngẫu nhiên 1 tank (vô hạn).
+const ENDLESS_RESPAWN = 3.0;
 
 // Level: mỗi màn debut 1 loại địch (fireresist sau shielder).
 const LEVELS = [
@@ -92,7 +100,7 @@ const LEVELS = [
   { name: 'Khiên',        baseHP: 7,  maxAlive: 10, spawn: [1.8, 3],   comp: { N: 6, E: 3, T: 2, S: 2, W: 1, H: 2 },                       crates: 46, bricks: 15, bonus: 210 },
   { name: 'Chống cháy',   baseHP: 7,  maxAlive: 10, spawn: [1.6, 2.8], comp: { N: 5, E: 3, T: 2, S: 2, W: 1, H: 1, F: 3 },                 crates: 48, bricks: 16, bonus: 230 },
   { name: 'Quân y',       baseHP: 8,  maxAlive: 11, spawn: [1.6, 2.8], comp: { N: 5, E: 3, T: 2, S: 2, W: 1, H: 1, F: 2, M: 2 },           crates: 48, bricks: 16, bonus: 250 },
-  { name: 'Không kích',   baseHP: 8,  maxAlive: 11, spawn: [1.5, 2.6], comp: { N: 5, E: 3, T: 2, S: 2, W: 1, H: 1, F: 2, M: 1, C: 2 },     crates: 48, bricks: 16, bonus: 270 },
+  { name: 'Không kích',   baseHP: 8,  maxAlive: 11, spawn: [1.5, 2.6], comp: { N: 5, E: 3, T: 2, S: 2, W: 1, H: 1, F: 2, M: 1, C: 2, R: 2 },  crates: 48, bricks: 16, bonus: 270 },
   { name: 'Railgun địch', baseHP: 10, maxAlive: 12, spawn: [1.4, 2.4], comp: { N: 5, E: 3, T: 2, S: 2, W: 1, H: 1, F: 2, M: 1, C: 1, G: 2 }, crates: 50, bricks: 16, bonus: 320 },
   { name: 'Railgun Elite', baseHP: 12, maxAlive: 12, spawn: [1.2, 2.2], comp: { N: 5, E: 3, T: 2, S: 2, W: 1, H: 1, F: 2, M: 1, C: 1, G: 1, V: 2 }, crates: 50, bricks: 16, bonus: 380 },
 ];
@@ -140,6 +148,8 @@ const IMG = {
   foeS:   P('asset/tank/greentankshotgun.png'),
   foeW:   P('asset/tank/greentankweaver.png'),
   foeC:   P('asset/tank/greentankcaller.png'),
+  foeR:   P('asset/tank/greentankmissile.png'),
+  bArti:  P('asset/tank/balisticartilery_nobg.png'),
   foeF:   P('asset/tank/greentankfireresist.png'),
   foeM:   P('asset/tank/greentankmedic.png'),
   foeG:   P('asset/tank/greentankrailgun.png'),

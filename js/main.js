@@ -1,8 +1,8 @@
 // ================= main.js — input, update, draw, loop =================
 const FOE_IMG = { N: 'grn', E: 'grnE', T: 'foeT', S: 'foeS', W: 'foeW', C: 'foeC',
-  F: 'foeF', M: 'foeM', G: 'foeG', H: 'foeH', V: 'foeV' };
+  F: 'foeF', M: 'foeM', G: 'foeG', H: 'foeH', V: 'foeV', R: 'foeR' };
 const FOE_TAG = { N: '', E: 'ELITE', T: 'TWIN', S: 'SHOTGUN', W: 'WEAVER', C: 'CALLER',
-  F: 'F.RESIST', M: 'MEDIC', G: 'RAILGUN', H: 'SHIELD', V: 'RAILGUN+' };
+  F: 'F.RESIST', M: 'MEDIC', G: 'RAILGUN', H: 'SHIELD', V: 'RAILGUN+', R: 'MISSILE' };
 const PICK_IMG = { medbox: 'med', gold: 'gold', a_mis: 'ammMis', a_clay: 'ammClay', a_gas: 'ammGas', a_bat: 'ammBat' };
 
 // ---------- input ----------
@@ -197,6 +197,8 @@ function update(dt) {
     else { queue.push(queue.shift()); spawnT = 1; }
     updateHUD();
   }
+  checkEnrage(); // base <50%hp + địch còn >25% (màn 8+): enrage 1 lần/màn
+  tickEndless(dt); // endless hết địch: mỗi 3s đẻ 1 tank
 
   // --- AI địch (OOP: mỗi subclass tự behavior) ---
   for (const f of foes) f.update(dt);
@@ -220,6 +222,10 @@ function update(dt) {
         b.chasing = true; b.speed = MIS_CHASE_PX;
       } else { b.chasing = false; b.speed = MIS_PX; }
       b.vx = Math.sin(b.ang) * b.speed; b.vy = -Math.cos(b.ang) * b.speed;
+    } else if (b.kind === 'arti' && b.foe) { // đạn đạo: bay xuyên địa hình tới đích rồi nổ 3x3
+      b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
+      if (Math.hypot(b.tx - b.x, b.ty - b.y) < 14 || b.life <= 0) { bullets.splice(i, 1); artiImpact(b); }
+      continue;
     } else if ((b.kind === 'heal' || b.kind === 'shield') && b.target) {
       const t = b.target;
       const isBase = b.isBase || t === base;
@@ -233,19 +239,20 @@ function update(dt) {
       if (Math.hypot(t.x - b.x, t.y - b.y) < 20) {
         bullets.splice(i, 1);
         if (b.kind === 'heal') {
-          if (isBase) { healAlly(base, MEDIC.heal); addFloat(base.x, base.y - 24, '+1 BASE', '#7CFC00'); }
+          const hv = medicHeal(), tag = base && base.enraged ? '+4' : '+1';
+          if (isBase) { healAlly(base, hv); addFloat(base.x, base.y - 24, tag + ' BASE', '#7CFC00'); }
           else {
             let n = 0;
             const tg = foes.concat(drones);
             for (const f of tg) {
-              if (Math.hypot(f.x - t.x, f.y - t.y) < MEDIC.radius) { healAlly(f, MEDIC.heal); n++; addFloat(f.x, f.y - 20, '+1', '#7CFC00'); }
+              if (Math.hypot(f.x - t.x, f.y - t.y) < MEDIC.radius) { healAlly(f, hv); n++; addFloat(f.x, f.y - 20, tag, '#7CFC00'); }
             }
-            if (n === 0) healAlly(t, MEDIC.heal);
+            if (n === 0) healAlly(t, hv);
           }
           explode(t.x, t.y, 10, ['#7CFC00', '#fff']); beep(700, 0.15, 'sine', 0.08);
         } else {
-          if (isBase) { base.shield = SHIELD.dur; addFloat(base.x, base.y - 28, 'BASE SHIELD!', '#7df9ff'); }
-          else { t.shield = SHIELD.dur; t.hit = 1; addFloat(t.x, t.y - 22, 'SHIELD!', '#7df9ff'); }
+          if (isBase) { base.shield = shieldDur(); addFloat(base.x, base.y - 28, 'BASE SHIELD!', '#7df9ff'); }
+          else { t.shield = shieldDur(); t.hit = 1; addFloat(t.x, t.y - 22, 'SHIELD!', '#7df9ff'); }
           explode(t.x, t.y, 10, ['#7df9ff', '#fff']); beep(600, 0.15, 'sine', 0.08);
         }
         updateHUD(); continue;
@@ -414,16 +421,34 @@ function update(dt) {
     shieldReact[i].t -= dt;
     if (shieldReact[i].t <= 0) {
       shieldReact.splice(i, 1);
-      for (const f of foes.concat(drones)) { f.shield = Math.max(f.shield, SHIELD.dur); f.hit = 1; }
+      for (const f of foes.concat(drones)) { f.shield = Math.max(f.shield, shieldDur()); f.hit = 1; }
       addFloat(player.x, player.y - 30, 'SHIELD WALL!', '#7df9ff');
       beep(500, 0.2, 'sine', 0.09);
     }
   }
 
-  // --- không kích caller: cảnh báo 2.5s rồi nổ = 1 dmg ---
+  // --- không kích caller (static: báo rồi nổ cross) + missile foe (lock bám -> freeze nháy -> đạn đạo) ---
   for (let i = warnings.length - 1; i >= 0; i--) {
     const w = warnings[i]; w.t -= dt;
-    if (w.t <= 0) {
+    if (w.phase === 'lock') {
+      if (player.alive) { // warning bám theo player trong lúc lock
+        const pc = cellAt(player.x, player.y);
+        w.centers = w.offsets.map(o => ({ c: pc.c + o.dc, r: pc.r + o.dr })).filter(k => inMap(k.c, k.r));
+        if (!w.centers.length) w.centers = [{ c: pc.c, r: pc.r }];
+        w.cells = expandCells(w.centers, w.cross);
+      }
+      if (w.t <= 0) { w.phase = 'flash'; w.t = MISL.flash; w.total = MISL.flash; beep(980, 0.12); } // lock xong: freeze, nháy
+      continue;
+    }
+    if (w.phase === 'flash') {
+      if (w.t <= 0) { // nháy xong -> phóng 1 missile đạn đạo tới tâm
+        warnings.splice(i, 1);
+        const ctr = w.centers[0] || { c: 0, r: 0 };
+        fireArti(w.sx, w.sy, ctr.c * TILE + 16, ctr.r * TILE + 16);
+      }
+      continue;
+    }
+    if (w.t <= 0) { // static (caller): hết báo -> nổ cross tức thì
       warnings.splice(i, 1);
       booms.push({ cells: w.cells, t: 0.8, total: 0.8 });
       explode(w.cells[0].c * TILE + 16, w.cells[0].r * TILE + 16, 20);
@@ -557,7 +582,7 @@ function draw() {
     for (const k of w.cells) if (spr.warnT) ctx.drawImage(spr.warnT, k.c * TILE, k.r * TILE, TILE, TILE);
     ctx.restore();
     ctx.fillStyle = '#ff6b6b'; ctx.font = 'bold 11px sans-serif';
-    ctx.fillText(w.t.toFixed(1), w.cells[0].c * TILE + 6, w.cells[0].r * TILE + 14);
+    ctx.fillText(w.phase === 'lock' ? '🔒' + w.t.toFixed(1) : w.t.toFixed(1), w.cells[0].c * TILE + 6, w.cells[0].r * TILE + 14);
   }
   for (const b of booms) {
     ctx.save(); ctx.globalAlpha = Math.max(0, b.t / b.total);

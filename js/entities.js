@@ -99,7 +99,7 @@ class Foe extends Tank {
     super(x, y, Math.PI, FOE_SPEED.N, [1]);
     this.applyKind(kind);
     const cd0 = { N: rnd(2, 3), E: rnd(2, 3.5), T: rnd(1.5, 2.5), S: rnd(2.5, 3.5), W: rnd(2, 3),
-      C: rnd(4, 6), F: rnd(2, 3), M: rnd(4, 6), G: rnd(3, 4), H: rnd(3, 4), V: rnd(3, 4) };
+      C: rnd(4, 6), F: rnd(2, 3), M: rnd(4, 6), G: rnd(3, 4), H: rnd(3, 4), V: rnd(3, 4), R: rnd(4, 6) };
     this.cd = cd0[kind] || 2;
     this.mineCd = rnd(9, 13); this.droneCd = rnd(3, 5);
     this.airCd = rnd(6, 9); this.burst = 0; this.burstT = 0;
