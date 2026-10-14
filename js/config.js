@@ -107,6 +107,14 @@ const LEVELS = [
 const UNLOCK_LEVEL = { mini: -1, clay: 1, flame: 5, tesla: 7, rail: 9 }; // mini starter; tesla phá màn 8 mở
 const UNLOCK_NAME = { mini: '🔫 MINIGUN [1]', clay: '💥 CLAYMORE [3]', flame: '🔥 FLAMETHROWER [4]', tesla: '⚡ TESLA [5]', rail: '🔆 LAZER [6]' };
 
+// Keybinding mặc định (đổi trong Pause, lưu localStorage).
+const DEFAULT_KEYS = { up: 'w', down: 's', left: 'a', right: 'd', fire: ' ', alt: 'k',
+  s1: '1', s2: '2', s3: '3', s4: '4', s5: '5', s6: '6',
+  cold: 'f', shop: 't', zoom: 'z', help: 'h', pause: 'p', retry: 'r' };
+const KEY_LABELS = { up: 'Lên', down: 'Xuống', left: 'Trái', right: 'Phải', fire: 'Bắn', alt: 'Bắn (phụ)',
+  s1: 'Minigun [1]', s2: 'Missile [2]', s3: 'Claymore [3]', s4: 'Flame [4]', s5: 'Tesla [5]', s6: 'Lazer [6]',
+  cold: 'ColdFlame', shop: 'Shop', zoom: 'Zoom', help: 'Trợ giúp', pause: 'Pause', retry: 'Chơi lại màn' };
+const SAVE_KEY = 'tankSaveV1', SETTINGS_KEY = 'tankSettings';
 // Missile upgrade: số lượng -> dmg/quả; firerate; railgun charge/pierce.
 const MIS_COUNT_DMG = { 1: 1.0, 2: 0.5, 3: 0.33, 4: 0.25 };
 const MIS_DMG_MUL = [1, 1.25, 1.5, 1.75];

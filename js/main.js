@@ -34,35 +34,46 @@ function feedCheatKey(k) { // cheat ẩn: "vjp67" +3667 vàng; "noob69" 9999999d
 }
 function onKeyDown(e) {
   const k = (e.key || '').toLowerCase();
-  keys[k] = true;
-  feedCheatKey(k);
-  if ([' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) e.preventDefault();
-  if (state !== 'play') {
-    if (k === 'r') retryLevel();
-    if (k === 't' && state === 'shop') closeShop();
-    if (k === 'p' && state === 'pause') { state = 'play'; hideAll(); }
+  if (rebindKey) { // đang gán phím mới trong pause: nuốt phím, không gameplay
+    e.preventDefault();
+    assignKey(rebindKey, k || ' ');
     return;
   }
-  if (k === '1') { player.form = 'MINI'; refreshSlots(); beep(500, 0.06); }
-  if (k === '2') { player.form = 'MIS'; refreshSlots(); beep(500, 0.06); }
-  if (k === '3') { if (up.clay) { player.form = 'CLAY'; refreshSlots(); beep(500, 0.06); } else { beep(160, 0.1); log('Claymore khóa — phá màn ' + (UNLOCK_LEVEL.clay + 1) + ' (Elite) để mở.'); } }
-  if (k === '4') { if (up.flame) { player.form = 'FLAME'; refreshSlots(); beep(500, 0.06); } else { beep(160, 0.1); log('Flame khóa — phá màn ' + (UNLOCK_LEVEL.flame + 1) + ' để mở.'); } }
-  if (k === '5') { if (up.tesla) { player.form = 'TESLA'; refreshSlots(); beep(900, 0.1); } else { beep(160, 0.1); log('Tesla khóa — phá màn ' + (UNLOCK_LEVEL.tesla + 1) + ' để mở.'); } }
-  if (k === '6') { if (up.rail) { player.form = 'RAIL'; refreshSlots(); beep(900, 0.1); } else { beep(160, 0.1); log('Lazer khóa — phá màn ' + (UNLOCK_LEVEL.rail + 1) + ' (Railgun) để mở.'); } }
-  if (k === ' ' || k === 'k') firePress();
-  if (k === 'f') {
-    if (player.form !== 'FLAME') log('Vào dạng flamethrower [3] rồi mới bật/tắt ColdFlame [F].');
-    else if (!up.cold) { beep(160, 0.1); log('ColdFlame chưa mua — mở shop [T].'); }
+  keys[k] = true;
+  feedCheatKey(k);
+  const K = settings.keys;
+  const match = (...names) => names.some(n => K[n] === k);
+  if (state === 'play' && ([' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k) || Object.values(K).includes(k))) e.preventDefault();
+  if (state !== 'play') {
+    if (match('retry')) retryLevel();
+    if (match('shop') && state === 'shop') closeShop();
+    if (match('pause') && state === 'pause') { state = 'play'; hideAll(); }
+    return;
+  }
+  const setForm = (f, ok, lockMsg) => {
+    if (ok) { player.form = f; refreshSlots(); beep(500, 0.06); }
+    else { beep(160, 0.1); log(lockMsg); }
+  };
+  if (k === K.s1) setForm('MINI', true);
+  if (k === K.s2) setForm('MIS', true);
+  if (k === K.s3) setForm('CLAY', up.clay, 'Claymore khóa — phá màn ' + (UNLOCK_LEVEL.clay + 1) + ' (Elite) để mở.');
+  if (k === K.s4) setForm('FLAME', up.flame, 'Flame khóa — phá màn ' + (UNLOCK_LEVEL.flame + 1) + ' để mở.');
+  if (k === K.s5) setForm('TESLA', up.tesla, 'Tesla khóa — phá màn ' + (UNLOCK_LEVEL.tesla + 1) + ' để mở.');
+  if (k === K.s6) setForm('RAIL', up.rail, 'Lazer khóa — phá màn ' + (UNLOCK_LEVEL.rail + 1) + ' (Railgun) để mở.');
+  if (match('fire', 'alt')) firePress();
+  if (match('cold')) {
+    if (player.form !== 'FLAME') log('Vào dạng flamethrower [' + keyName(K.s4) + '] rồi mới bật/tắt ColdFlame [' + keyName(K.cold) + '].');
+    else if (!up.cold) { beep(160, 0.1); log('ColdFlame chưa mua — mở shop [' + keyName(K.shop) + '].'); }
     else {
       player.cold = !player.cold; beep(player.cold ? 300 : 520, 0.09);
       log(player.cold ? '❄ ColdFlame ON — frost thay burn' : '🔥 Hot flame — burn trở lại'); refreshSlots();
     }
   }
-  if (k === 't') openShop(false);
-  if (k === 'z') cycleZoom(); // Z đổi nấc zoom
-  if (k === 'h') toggleHelp(); // H ẩn/hiện hướng dẫn
-  if (k === 'p') { state = 'pause'; showPause(); }
-  else if (k === 'r') retryLevel();
+  if (match('shop')) openShop(false);
+  if (match('zoom')) cycleZoom(); // đổi nấc zoom
+  if (match('help')) toggleHelp(); // ẩn/hiện hướng dẫn
+  if (match('pause')) { state = 'pause'; showPause(); }
+  else if (match('retry')) retryLevel();
 }
 addEventListener('keydown', onKeyDown, true); // capture: chạy trước mọi thứ, IME không nuốt được
 addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
@@ -156,11 +167,12 @@ function update(dt) {
     if (player.miniGap > 0.3) player.miniHold = 0;
   }
 
-  // --- player di chuyển mượt ---
+  // --- player di chuyển mượt (theo keybinding) ---
   if (player.alive) {
+    const KB = settings.keys;
     let dx = 0, dy = 0;
-    if (keys['a']) dx -= 1; if (keys['d']) dx += 1;
-    if (keys['w']) dy -= 1; if (keys['s']) dy += 1;
+    if (keys[KB.left]) dx -= 1; if (keys[KB.right]) dx += 1;
+    if (keys[KB.up]) dy -= 1; if (keys[KB.down]) dy += 1;
     if (touchMove) { // touch: chạy về điểm chạm (world coords đã qua camera)
       dx = touchMove.x - player.x; dy = touchMove.y - player.y;
       const tl = Math.hypot(dx, dy);
@@ -174,7 +186,7 @@ function update(dt) {
     } else { player.mvx = 0; player.mvy = 0; }
   }
   const A = ammo;
-  const firing = (keys[' '] || keys['k'] || touchFire) && player.alive;
+  const firing = (keys[settings.keys.fire] || keys[settings.keys.alt] || touchFire) && player.alive;
   if (firing) {
     if (player.form === 'MINI') fireMinigun();
     else if (player.form === 'MIS') fireMissiles();
@@ -672,7 +684,7 @@ function draw() {
     const PI = { MINI: 'redMini', MIS: 'redMis', CLAY: 'redClay', FLAME: 'redFlame', TESLA: 'redTesla', RAIL: 'redRail' };
     drawSpr(spr[PI[player.form]] || spr.redRail, player.x, player.y, 36, 36, player.ang);
     ctx.fillStyle = '#fff'; ctx.font = 'bold 9px sans-serif';
-    ctx.fillText({ MINI: 'MINI [1]', MIS: 'MIS [2]', CLAY: 'CLAY [3]', FLAME: 'FLAME [4]', TESLA: 'TESLA [5]', RAIL: 'LAZER [6]' }[player.form], player.x - 24, player.y - 22);
+    ctx.fillText({ MINI: 'MINI [' + keyName(settings.keys.s1) + ']', MIS: 'MIS [' + keyName(settings.keys.s2) + ']', CLAY: 'CLAY [' + keyName(settings.keys.s3) + ']', FLAME: 'FLAME [' + keyName(settings.keys.s4) + ']', TESLA: 'TESLA [' + keyName(settings.keys.s5) + ']', RAIL: 'LAZER [' + keyName(settings.keys.s6) + ']' }[player.form], player.x - 24, player.y - 22);
     // HPBar player chia vạch theo block
     const bw = 46, bh = 7, bx = player.x - bw / 2, by = player.y - 32;
     ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
@@ -785,12 +797,28 @@ function loop(ts) {
   if (state === 'play') update(dt);
   draw();
 }
-$('btnStart').onclick = () => {
-  if (state === 'pause') { state = 'play'; hideAll(); }
-  else if (state === 'dead') retryLevel();
-  else startGame();
-};
-$('overlay').classList.remove('hidden');
-$('ovText').innerHTML = `Bạn là <b style="color:#ff6b6b">tank đỏ</b>, phá <b style="color:#7CFC00">base xanh</b> qua 11 màn (mỗi màn 1 loại địch mới), nhặt <b>vàng + đạn</b> mua đồ.<br><br>
-  <kbd>WASD</kbd> chạy • <kbd>1</kbd> minigun <kbd>2</kbd> missile <kbd>3</kbd>/<kbd>4</kbd>/<kbd>5</kbd>/<kbd>6</kbd> mở dần theo màn • <kbd>Space</kbd> bắn/đặt • <kbd>T</kbd> shop • <kbd>R</kbd> chơi lại màn`;
-loadAll().then(() => { resetAll(); startLevel(0); loadSettings(); refreshShakeBtn(); fitCanvas(); requestAnimationFrame(loop); });
+function showMenu() { // màn hình chờ: tiếp tục save cũ hoặc chơi mới
+  const K = settings.keys, kn = k => '<kbd>' + keyName(k) + '</kbd>';
+  $('ovTitle').textContent = '🔴 TANK ĐỎ XUNG TRẬN';
+  $('ovText').innerHTML = `Bạn là <b style="color:#ff6b6b">tank đỏ</b>, phá <b style="color:#7CFC00">base xanh</b> qua 11 màn (mỗi màn 1 loại địch mới), nhặt <b>vàng + đạn</b> mua đồ.<br><br>` +
+    `${kn(K.up)}${kn(K.down)}${kn(K.left)}${kn(K.right)} chạy • ${kn(K.s1)} minigun ${kn(K.s2)} missile ${kn(K.s3)}/${kn(K.s4)}/${kn(K.s5)}/${kn(K.s6)} mở dần • ${kn(K.fire)} bắn • ${kn(K.shop)} shop • ${kn(K.retry)} chơi lại • ${kn(K.pause)} pause` +
+    (hasSave ? `<br>Tiến trình cũ: <b>màn ${level + 1}</b> • <b>${gold}</b> vàng • điểm <b>${score}</b>` : '');
+  $('overlay').classList.remove('hidden');
+  if (hasSave) {
+    $('btnStart').textContent = '▶ Tiếp tục (màn ' + (level + 1) + ')';
+    $('btnStart').onclick = () => continueSave();
+    $('btnNew').style.display = '';
+    $('btnNew').onclick = () => startGame();
+  } else {
+    $('btnStart').textContent = '▶ Chơi ngay';
+    $('btnStart').onclick = () => startGame();
+    $('btnNew').style.display = 'none';
+  }
+}
+addEventListener('beforeunload', () => { try { if (typeof level === 'number' && up) saveAll(); } catch (e) {} });
+loadAll().then(() => {
+  resetAll(); loadSettings(); hasSave = loadSave();
+  if (hasSave) startLevel(level); else startLevel(0);
+  refreshShakeBtn(); renderHelp(); fitCanvas(); showMenu();
+  requestAnimationFrame(loop);
+});

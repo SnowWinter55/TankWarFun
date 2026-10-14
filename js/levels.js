@@ -7,6 +7,31 @@ function lvlDef(i) {
   return { name: 'Vô tận +' + k, baseHP: 12 + 2 * k, maxAlive: 12, spawn: [1.2, 2.2],
     comp, crates: 50, bricks: 16, bonus: 380 + 60 * k };
 }
+function saveAll() { // lưu progress + settings: refresh không mất
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, up, ammo, gold, score, kills, level, maxUnlock,
+      settings: { shake: settings.shake, keys: settings.keys } }));
+  } catch (e) {}
+  saveSettings();
+}
+function loadSave() { // đọc save, merge với default, true nếu có
+  try {
+    const sv = JSON.parse(localStorage.getItem(SAVE_KEY));
+    if (!sv || sv.v !== 1) return false;
+    up = Object.assign(defUp(), sv.up || {});
+    const da = defAmmo();
+    ammo = da;
+    for (const k of Object.keys(da)) ammo[k] = Object.assign(da[k], (sv.ammo || {})[k] || {});
+    gold = sv.gold || 0; score = sv.score || 0; kills = sv.kills || 0;
+    level = sv.level || 0; maxUnlock = sv.maxUnlock || 0;
+    if (sv.settings) {
+      if (typeof sv.settings.shake === 'boolean') settings.shake = sv.settings.shake;
+      if (sv.settings.keys) settings.keys = Object.assign({}, DEFAULT_KEYS, sv.settings.keys);
+    }
+    return true;
+  } catch (e) { return false; }
+}
+function wipeSave() { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} }
 function resetAll() {
   up = defUp(); ammo = defAmmo(); gold = 0; score = 0; kills = 0; level = 0;
   ammo.mis.stock = MIS_LOAD; ammo.mini.load = MINI.load; ammo.tesla.charge = 0;
@@ -46,7 +71,9 @@ function startLevel(i) {
   cam.x = player.x; cam.y = player.y; // snap camera đầu màn (giữ zoom)
   spawnFoe('N'); spawnFoe('N');
   levelTotal = queue.length + foes.length; endlessT = 0; // tổng địch màn (cho enrage + endless)
+  maxUnlock = Math.max(maxUnlock, i);
   updateHUD(); refreshSlots();
+  saveAll();
   log('Màn ' + (i + 1) + ' ' + def.name + ': base ' + def.baseHP + 'hp, địch ' + queue.length + '+2 con.');
 }
 function checkEnrage() { // base <50%hp mà địch còn >25% tổng (màn 8+): burst 2 medic + 1 shield, buff medic/shield
@@ -101,6 +128,7 @@ function spawnFoe(kind) { // đẻ từ base xanh
 function levelClear() {
   const def = lvlDef(level);
   gold += def.bonus; score += 200;
+  maxUnlock = Math.max(maxUnlock, level + 1);
   explode(base.x, base.y, 40); updateHUD();
   let unlock = '';
   if (level === UNLOCK_LEVEL.clay && !up.clay) { up.clay = true; ammo.clay.stock++; ammo.clay.load = 1; unlock += ' 🔓 MỞ KHÓA ' + UNLOCK_NAME.clay + '!'; }
@@ -116,7 +144,12 @@ function gameOver() {
   state = 'dead';
   $('ovTitle').textContent = '💥 TANK ĐỎ NÁT RỒI (màn ' + (level + 1) + ')';
   $('ovText').innerHTML = `Điểm <b>${score}</b> • hạ <b>${kills}</b> tank • vàng <b>${gold}</b> + upgrade + đạn giữ nguyên.<br><kbd>R</kbd> chơi lại màn này`;
-  $('overlay').classList.remove('hidden'); $('btnStart').textContent = '↻ Chơi lại màn';
+  $('overlay').classList.remove('hidden');
+  $('btnStart').textContent = '↻ Chơi lại màn';
+  $('btnStart').onclick = () => retryLevel();
+  $('btnNew').style.display = 'none';
 }
 function retryLevel() { startLevel(level); state = 'play'; hideAll(); } // giữ upgrade + đạn
-function startGame() { resetAll(); startLevel(0); state = 'play'; hideAll(); beep(440, 0.1); }
+function startGame() { wipeSave(); maxUnlock = 0; resetAll(); startLevel(0); state = 'play'; hideAll(); beep(440, 0.1); }
+function continueSave() { startLevel(level); state = 'play'; hideAll(); beep(440, 0.1); } // tiếp tục màn trong save
+function jumpLevel(i) { $('shop').classList.add('hidden'); startLevel(i); state = 'play'; hideAll(); } // chọn màn (giữ upgrade)

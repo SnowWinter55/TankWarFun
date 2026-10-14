@@ -120,7 +120,7 @@ function renderAmmoCards(box) {
       const q = +slider.value, c = g.price(q);
       if (gold < c) return;
       gold -= c; g.buy(q); beep(660, 0.1);
-      refreshShop(); updateHUD(); refreshSlots();
+      saveAll(); refreshShop(); updateHUD(); refreshSlots();
     };
     box.appendChild(card);
   }
@@ -162,7 +162,7 @@ function refreshShop() {
     const b = document.createElement('button');
     b.innerHTML = !ok ? 'MAX' : (cost + ' <img class="coin" src="' + IMG.gold + '">');
     b.disabled = !afford;
-    if (ok) b.onclick = () => { if (gold >= it.cost()) { gold -= it.cost(); it.buy(); beep(660, 0.1); refreshShop(); updateHUD(); refreshSlots(); } };
+    if (ok) b.onclick = () => { if (gold >= it.cost()) { gold -= it.cost(); it.buy(); beep(660, 0.1); saveAll(); refreshShop(); updateHUD(); refreshSlots(); } };
     row.appendChild(b); box.appendChild(row);
   }
 }

@@ -82,7 +82,7 @@
   <div id="overlay" class="overlay">
     <h2 id="ovTitle">🔴 TANK ĐỎ XUNG TRẬN</h2>
     <p id="ovText"></p>
-    <div><button id="btnStart">▶ Chơi ngay</button></div>
+    <div><button id="btnStart">▶ Chơi ngay</button> <button id="btnNew" style="display:none;background:#2e7d32;">🆕 Chơi mới</button></div>
   </div>
   <div id="shop" class="overlay hidden">
     <h2>🛒 SHOP <span id="shopGold"><img id="goldIcon" alt="gold"> <span id="shopGoldN">0</span></span></h2>
@@ -104,8 +104,7 @@
         <b>📖 Hướng dẫn (H để đóng)</b><button id="btnHelpClose">Đóng</button>
       </div>
       <div id="helpInner" style="font-size:13px;line-height:1.65;opacity:.9;margin-top:10px;">
-        📷 <b>Camera 32×18</b> theo player • <b>lăn chuột / <kbd>Z</kbd></b> zoom • minimap góc phải • thanh máu chia vạch trên đầu player • HUD đè lên canvas • <kbd>H</kbd> panel này.<br>
-        🕹️ <b>Di chuyển mượt:</b> giữ <kbd>WASD</kbd> (mobile chạm 1 ngón, 2 ngón bắn), cạ tường tự trượt. Bạn <b>3.4 tile/s</b>.<br>
+        <span id="helpKeys"></span><br>
         🎒 <b>Đạn dược (tab 3):</b> thẻ card có ảnh + slider chọn số lượng: missile/minigun chung kho (1 đạn = 20 viên) • claymore • gas • pin rail/tesla • <b>heal kit</b> hồi máu ngay (40 vàng/❤️, đầy máu không mua được, đầy kho không mua được).<br>
         🔫 <b>[1] Minigun:</b> ray vàng 1px, 0.1dmg/đạn 0.1s, chặn bởi crate (1 đạn missile = 20 viên), Massive Caliber (xuyên 10-50%) • Ignitous Acceleration (xả 4/3.5/3/2.5s +1 burn &amp; +0.1/0.15/0.2/0.25dmg) • Monstrous Magazine (mag 60/80/100/120/140) • Rapid Fire (double 10-50%, tốc 0.09-0.05s).<br>
         🚀 <b>[2] Missile:</b> Multimissile → + → Compound → Tactical Launchpad tới 0.33s. Homing 2 tile.<br>
