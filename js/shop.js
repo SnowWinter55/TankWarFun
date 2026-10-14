@@ -36,14 +36,8 @@ const SHOP = [
     avail: () => up.tesla && (up.malcond || 0) < 4, buy: () => { up.malcond++; }, pips: () => [up.malcond, 4] },
   { id: 'ball', tab: 'W', cat: '⚡ TESLA [5]', name: 'Ball Lightning', desc: 'Địch chết bởi tesla: 24%/36%/48% để lại sét hòn 3s/4s/5s, r=2/2.5/3 tile, giật 1/2/3 địch 0.4dmg mỗi 0.4s/0.3s/0.2s.', cost: () => [200, 320, 480][up.ball],
     avail: () => up.tesla && (up.ball || 0) < 3, buy: () => { up.ball++; }, pips: () => [up.ball, 3] },
-  { id: 'a_mis', tab: 'A', cat: '🎒 ĐẠN DƯỢC', name: 'Đạn missile/minigun +80', desc: 'Nạp vào kho chung missile+minigun (1 đạn missile = 20 viên minigun).', cost: () => 60,
-    avail: () => true, buy: () => { addStock('mis', 80); } },
-  { id: 'a_clay', tab: 'A', cat: '🎒 ĐẠN DƯỢC', name: 'Claymore +1', desc: 'Thêm 1 claymore vào kho.', cost: () => 50,
-    avail: () => up.clay, buy: () => { addStock('clay', 1); } },
-  { id: 'a_gas', tab: 'A', cat: '🎒 ĐẠN DƯỢC', name: 'Gastank +1', desc: 'Thêm 1 bình gas (20s phun).', cost: () => 80,
-    avail: () => up.flame, buy: () => { addStock('gas', 1); } },
-  { id: 'a_bat', tab: 'A', cat: '🎒 ĐẠN DƯỢC', name: 'Pin +150⚡', desc: 'Nạp điện kho chung railgun+tesla (tesla 5⚡/tase, rail 80⚡/bắn).', cost: () => 70,
-    avail: () => (up.rail || up.tesla), buy: () => { addStock('bat', 150); } },
+  { id: 'smart', tab: 'W', cat: '⚡ TESLA [5]', name: 'Smart Targeting', desc: 'Primary target bỏ qua Shielder (ưu tiên: địch khác > shielder > obstacle). Chain vẫn có thể lan dính shielder.', cost: () => 250,
+    avail: () => up.tesla && !up.smart, buy: () => { up.smart = true; } },
   { id: 'pierce', tab: 'W', cat: '🔆 LAZER [6]', name: 'High Frequency', desc: '50% → 75% → 100% bắn xuyên tường gạch (không phá tường).', cost: () => [120, 200, 300][up.pierce],
     avail: () => up.rail && up.pierce < 3, buy: () => { up.pierce++; }, pips: () => [up.pierce, 3] },
   { id: 'charge', tab: 'W', cat: '🔆 LAZER [6]', name: 'Electrocharged', desc: 'Dmg 1 → 3 → 6 → 10 → 17 → 28 → 40 (lên static chỉ 50%, base có thể one-shot). 1 bắn tốn 80⚡.', cost: () => [120, 200, 300, 420, 560, 700][up.charge],
@@ -70,6 +64,67 @@ const SHOP = [
   { id: 'rld', tab: 'C', cat: '🧬 ĐẶC TÍNH', name: 'Optimized Reload', desc: 'Mọi loại nạp nhanh hơn 10% → 20% → 30% → 40% → 50%.', cost: () => [100, 160, 240, 340, 460][up.rld],
     avail: () => up.rld < 5, buy: () => { up.rld++; }, pips: () => [up.rld, 5] },
 ];
+// Tab đạn dược: thẻ card lớn — trái ô ảnh, phải số lượng + slider + nút mua.
+// Kho đầy (rail/pin, missile...) hoặc đầy máu (heal kit) thì khóa nút mua.
+const AMMO_SHOP = [
+  { id: 'a_mis', img: 'ammMis', name: 'Đạn missile/minigun', desc: 'Kho chung (1 đạn missile = 20 viên minigun).',
+    unit: 'đạn', step: 10, min: 10, locked: () => null,
+    stock: () => 'Kho ' + ammo.mis.stock + '/' + capMis(),
+    maxQty: () => { const free = capMis() - ammo.mis.stock; return free <= 0 ? 0 : Math.max(10, Math.floor(free / 10) * 10); },
+    price: q => Math.ceil(q * 60 / 80), buy: q => { addStock('mis', q); } },
+  { id: 'a_clay', img: 'ammClay', name: 'Claymore', desc: 'Thêm claymore vào kho.',
+    unit: 'quả', step: 1, min: 1, locked: () => up.clay ? null : ('Phá màn ' + (UNLOCK_LEVEL.clay + 1) + ' mở Claymore'),
+    stock: () => 'Kho ' + ammo.clay.stock + '/' + capClay(),
+    maxQty: () => Math.max(0, capClay() - ammo.clay.stock),
+    price: q => q * 50, buy: q => { addStock('clay', q); } },
+  { id: 'a_gas', img: 'ammGas', name: 'Gastank', desc: 'Thêm bình gas (20s phun).',
+    unit: 'bình', step: 1, min: 1, locked: () => up.flame ? null : ('Phá màn ' + (UNLOCK_LEVEL.flame + 1) + ' mở Flamethrower'),
+    stock: () => 'Kho ' + ammo.flame.tanks + '/' + capGas(),
+    maxQty: () => Math.max(0, capGas() - ammo.flame.tanks),
+    price: q => q * 80, buy: q => { addStock('gas', q); } },
+  { id: 'a_bat', img: 'ammBat', name: 'Pin railgun/tesla', desc: 'Kho chung (tesla 5⚡/tase, rail 80⚡/bắn).',
+    unit: '⚡', step: 15, min: 15, locked: () => (up.rail || up.tesla) ? null : ('Phá màn ' + (UNLOCK_LEVEL.tesla + 1) + ' mở Tesla'),
+    stock: () => 'Kho ' + ammo.rail.stock + '/' + capBatU() + '⚡',
+    maxQty: () => { const free = capBatU() - ammo.rail.stock; return free <= 0 ? 0 : Math.max(15, Math.floor(free / 15) * 15); },
+    price: q => Math.ceil(q * 70 / 150), buy: q => { addStock('bat', q); } },
+  { id: 'heal', img: 'med', name: 'Heal kit', desc: 'Hồi máu ngay lập tức cho tank đỏ.',
+    unit: '❤️', step: 1, min: 1, locked: () => null,
+    stock: () => 'Máu ' + fmt(Math.max(0, player.hp)) + '/' + player.maxhp,
+    maxQty: () => player.maxhp - player.hp <= 0 ? 0 : Math.max(1, Math.ceil(player.maxhp - player.hp - 1e-9)),
+    price: q => q * 40, buy: q => { healAlly(player, q); log('❤️ Heal kit +' + q + ' máu.'); } },
+];
+function renderAmmoCards(box) {
+  const h = document.createElement('div');
+  h.style.cssText = 'font-weight:700;margin-top:6px;opacity:.85'; h.textContent = '🎒 ĐẠN DƯỢC';
+  box.appendChild(h);
+  for (const g of AMMO_SHOP) {
+    const lockMsg = g.locked();
+    const max = lockMsg ? 0 : g.maxQty();
+    const full = !lockMsg && max <= 0;
+    const card = document.createElement('div'); card.className = 'ammoCard';
+    card.innerHTML =
+      `<div class="thumb"><img src="${IMG[g.img]}" alt=""></div>` +
+      `<div class="info"><b>${g.name}</b><small>${g.desc}</small>` +
+      `<small class="stk">${lockMsg ? ('🔒 ' + lockMsg) : g.stock()}</small>` +
+      `<div class="buyrow"><input type="range" min="${g.min}" max="${Math.max(g.min, max)}" step="${g.step}" value="${g.min}" ${lockMsg || full ? 'disabled' : ''}>` +
+      `<span class="qty"></span><button></button></div></div>`;
+    const slider = card.querySelector('input'), qty = card.querySelector('.qty'), btn = card.querySelector('button');
+    const sync = () => {
+      const q = +slider.value, c = g.price(q);
+      qty.textContent = q + ' ' + g.unit;
+      btn.innerHTML = full ? 'FULL' : (lockMsg ? '🔒' : ('Mua ' + c + ' <img class="coin" src="' + IMG.gold + '">'));
+      btn.disabled = !!(lockMsg || full || gold < c);
+    };
+    slider.oninput = sync; sync();
+    if (!lockMsg && !full) btn.onclick = () => {
+      const q = +slider.value, c = g.price(q);
+      if (gold < c) return;
+      gold -= c; g.buy(q); beep(660, 0.1);
+      refreshShop(); updateHUD(); refreshSlots();
+    };
+    box.appendChild(card);
+  }
+}
 function openShop(canNext, unlockMsg) {
   state = 'shop';
   $('shop').classList.remove('hidden');
@@ -89,6 +144,7 @@ function closeShop() {
 function refreshShop() {
   $('shopGoldN').textContent = gold;
   const box = $('shopItems'); box.innerHTML = '';
+  if (shopTab === 'A') { renderAmmoCards(box); return; }
   let lastCat = '';
   for (const it of SHOP) {
     if (it.tab !== shopTab) continue;
@@ -104,7 +160,7 @@ function refreshShop() {
     row.innerHTML = `<div class="nm"><b>${it.name}</b><small>${it.desc}</small></div>
       <span class="pips">${pips ? ('●'.repeat(pips[0]) + '○'.repeat(pips[1] - pips[0])) : ''}</span>`;
     const b = document.createElement('button');
-    b.textContent = !ok ? 'MAX' : (cost + ' 🪙');
+    b.innerHTML = !ok ? 'MAX' : (cost + ' <img class="coin" src="' + IMG.gold + '">');
     b.disabled = !afford;
     if (ok) b.onclick = () => { if (gold >= it.cost()) { gold -= it.cost(); it.buy(); beep(660, 0.1); refreshShop(); updateHUD(); refreshSlots(); } };
     row.appendChild(b); box.appendChild(row);

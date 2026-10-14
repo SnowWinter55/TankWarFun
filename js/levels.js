@@ -15,7 +15,7 @@ function resetAll() {
 function defUp() {
   return { multi: false, cnt: 0, dmg: 0, rel: 0, rail: false, pierce: 0, charge: 0, bpierce: false,
     mini: true, caliber: 0, ignit: 0, mag: 0, rapid: 0, clay: false, clair: 0, fatal: 0, shrap: 0, psi: 0,
-    flame: false, napalm: 0, cold: false, chem: 0, tesla: false, high: 0, malcond: 0, ball: 0,
+    flame: false, napalm: 0, cold: false, chem: 0, tesla: false, high: 0, malcond: 0, ball: 0, smart: false,
     hp: 0, stor: 0, frate: 0, crate: 0, cdmg: 0, rld: 0 };
 }
 function defAmmo() {

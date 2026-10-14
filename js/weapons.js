@@ -184,8 +184,16 @@ function fireTesla() {
   if (A.charge <= 0) startReload('tesla');
   const allF = foes.concat(drones);
   // nạn nhân đầu: gần nhất trong tầm 5 tile (bất kể hướng — tesla tự tìm)
+  // Smart Targeting: bỏ qua Shielder nếu còn địch khác; chỉ còn shielder thì vẫn đánh (trên obstacle).
   let first = null, bd = TESLA.range;
-  for (const f of allF) { const d = Math.hypot(f.x - player.x, f.y - player.y); if (d < bd) { bd = d; first = f; } }
+  for (const f of allF) {
+    if (up.smart && f.kind === 'H') continue;
+    const d = Math.hypot(f.x - player.x, f.y - player.y);
+    if (d < bd) { bd = d; first = f; }
+  }
+  if (up.smart && !first) {
+    for (const f of allF) { const d = Math.hypot(f.x - player.x, f.y - player.y); if (d < bd) { bd = d; first = f; } }
+  }
   if (!first) {
     let ox = null, obd = TESLA.range, oIsBase = false, oCrate = null;
     for (const k of crates) {
